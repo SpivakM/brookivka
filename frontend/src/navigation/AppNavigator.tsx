@@ -1,5 +1,5 @@
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { RootStackParamList } from './types';
 
 import { EntryScreen } from '../modules/home/screens/EntryScreen';
@@ -8,7 +8,7 @@ import { MapScreen } from '../modules/map-routes/screens/MapScreen';
 import { LandmarksScreen } from '../modules/landmarks/screens/LandmarksScreen';
 import { AIGuideScreen } from '../modules/ai-guide/screens/AIGuideScreen';
 
-const Stack = createStackNavigator<RootStackParamList>();
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const AppNavigator = () => {
   return (
