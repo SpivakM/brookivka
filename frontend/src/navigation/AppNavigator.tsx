@@ -5,7 +5,7 @@ import { RootStackParamList } from './types';
 import { EntryScreen } from '../modules/home/screens/EntryScreen';
 import { ARScannerScreen } from '../modules/ar-scanner/screens/ARScannerScreen';
 import { MapScreen } from '../modules/map-routes/screens/MapScreen';
-import { LandmarksScreen } from '../modules/landmarks/screens/LandmarksScreen';
+import { LandmarksScreen } from '../modules/landmarks/screens/LandmarkScreen';
 import { AIGuideScreen } from '../modules/ai-guide/screens/AIGuideScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
