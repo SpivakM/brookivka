@@ -32,7 +32,7 @@ export default function App() {
       <View style={styles.mapContainer}>
         <Image
           source={{
-            uri: 'https://static-maps.yandex.ru/1.x/?l=map&ll=24.0311,49.8429&z=14&size=600,450',
+            uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTTOjPw9SeVpe6rRLZ7oVdPpV7xHEqS1Hxm5CsbK-WV2Q&s=10',
           }}
           style={styles.mapImage}
           resizeMode="cover"
