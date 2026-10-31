@@ -1,14 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Button, StyleSheet } from 'react-native';
 
-export const EntryScreen: React.FC = () => {
-  return (
-    <View style={styles.container}>
-      <Text>Entry Screen Placeholder</Text>
-    </View>
-  );
-};
+export const ARScannerScreen = () => (
+  <View style={styles.container}>
+    <Text>AR Scanner Screen (Camera Placeholder)</Text>
+  </View>
+);
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center' }
 });
