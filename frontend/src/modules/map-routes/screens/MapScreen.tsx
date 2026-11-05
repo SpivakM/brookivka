@@ -4,15 +4,22 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  Image,
   StatusBar,
   Platform,
   TouchableOpacity,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { RouteCard, RouteItem } from '../components/RouteCard';
 import { COLORS } from '../../../shared/constants/theme';
+
+const LVIV_INITIAL_REGION = {
+  latitude: 49.842957,
+  longitude: 24.031111,
+  latitudeDelta: 0.015,
+  longitudeDelta: 0.015,
+};
 
 const LVIV_ROUTES: RouteItem[] = [
   {
@@ -85,14 +92,21 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
 
       <View style={styles.body}>
         <View style={styles.mapContainer}>
-          <Image
-            source={{
-              uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRzLz0kMw4mPQPAhVhK7m6egO6gxBqyf1s8tLBcAcG5Xg&s=10',
-            }}
+          {/* ІНТЕРАКТИВНА КАРТА ЗАМІСТЬ ІМІДЖУ */}
+          <MapView
+            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
             style={styles.mapImage}
-          />
+            initialRegion={LVIV_INITIAL_REGION}
+            showsUserLocation={true}
+            showsCompass={false}
+          >
+            <Marker
+              coordinate={{ latitude: 49.8419, longitude: 24.0297 }}
+              title="Львівська Опера"
+            />
+          </MapView>
 
-          {/* Інтерактивна кнопка PICKED ROUTES із вираженою підсвіткою/тінню */}
+          {/* Кнопка-шапка PICKED ROUTES */}
           <TouchableOpacity
             style={styles.routesHeader}
             activeOpacity={0.85}
@@ -102,7 +116,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
             <Text style={styles.arrowIcon}>{isRoutesOpen ? '▲' : '▼'}</Text>
           </TouchableOpacity>
 
-          {/* Випадаючий список із заокругленими нижніми кутами та підсвіткою */}
+          {/* Випадаючий список */}
           {isRoutesOpen && (
             <View style={styles.dropdownContainer}>
               <FlatList
@@ -143,7 +157,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderBronze,
     borderRadius: 16,
     position: 'relative',
-    // Окремо залишаємо радіуси карти
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     borderBottomLeftRadius: 16,
@@ -167,9 +180,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 14,
     borderTopRightRadius: 14,
     borderBottomWidth: 2,
-    borderBottomColor: 'rgba(218, 165, 32, 0.6)', // Тонка золотиста лінія підсвітки кнопки
+    borderBottomColor: 'rgba(218, 165, 32, 0.6)',
     zIndex: 10,
-    // Нативна підсвітка / тінь в колір кнопки
     shadowColor: COLORS.buttonBrown,
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.5,
@@ -200,12 +212,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderTopWidth: 0,
     borderColor: COLORS.borderBronze,
-    // Заокруглені нижні кутики
     borderBottomLeftRadius: 16,
     borderBottomRightRadius: 16,
     padding: 10,
     zIndex: 9,
-    // Підсвітка та тінь для випадаючого вікна
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
