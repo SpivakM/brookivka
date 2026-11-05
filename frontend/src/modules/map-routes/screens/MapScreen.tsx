@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, StatusBar, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Image,
+  StatusBar,
+  Platform,
+  TouchableOpacity,
+} from 'react-native';
 import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { RouteCard, RouteItem } from '../components/RouteCard';
@@ -12,7 +21,8 @@ const LVIV_ROUTES: RouteItem[] = [
     distance: '2.33 km',
     duration: '35 min',
     rating: '4.9',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_yGuOXzdFdT0u1emI3lPiX0zK26AyKB6uvGPdY2Fgqg&s=10', // Львівська опера / Площа Ринок
+    imageUrl:
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_yGuOXzdFdT0u1emI3lPiX0zK26AyKB6uvGPdY2Fgqg&s=10',
   },
   {
     id: '2',
@@ -20,7 +30,8 @@ const LVIV_ROUTES: RouteItem[] = [
     distance: '3.10 km',
     duration: '50 min',
     rating: '4.8',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTVKVP_YLSt9TUHMAnhFRvvs9b8LwStkJ32BQg9iMsLhA&s=10', // Будинок вчених / Австрійська архітектура
+    imageUrl:
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTVKVP_YLSt9TUHMAnhFRvvs9b8LwStkJ32BQg9iMsLhA&s=10',
   },
   {
     id: '3',
@@ -28,7 +39,8 @@ const LVIV_ROUTES: RouteItem[] = [
     distance: '1.80 km',
     duration: '40 min',
     rating: '4.7',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFrLZVZGZTinrbwhDEcxf_WaON13v_020Vfq_7cfUe3g&s=10', // Високий замок
+    imageUrl:
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTFrLZVZGZTinrbwhDEcxf_WaON13v_020Vfq_7cfUe3g&s=10',
   },
   {
     id: '4',
@@ -36,7 +48,8 @@ const LVIV_ROUTES: RouteItem[] = [
     distance: '1.50 km',
     duration: '30 min',
     rating: '4.9',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQKF12qSB9qloio621ayPXGdRFM3NddY-HNKKzB7b4h9Q&s=10', // Дворик загублених іграшок / Італійський дворик
+    imageUrl:
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQKF12qSB9qloio621ayPXGdRFM3NddY-HNKKzB7b4h9Q&s=10',
   },
   {
     id: '5',
@@ -44,7 +57,8 @@ const LVIV_ROUTES: RouteItem[] = [
     distance: '2.70 km',
     duration: '1 h 10 min',
     rating: '4.8',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRt5dbcrpMPU_zxvcU_LhP7bqK6tmkduUl4vsdt_MvslA&s=10', // Личаківський цвинтар[cite: 5]
+    imageUrl:
+      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRt5dbcrpMPU_zxvcU_LhP7bqK6tmkduUl4vsdt_MvslA&s=10',
   },
 ];
 
@@ -54,6 +68,7 @@ interface MapScreenProps {
 
 export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [isRoutesOpen, setIsRoutesOpen] = useState(false);
 
   return (
     <View style={styles.root}>
@@ -76,17 +91,29 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
             }}
             style={styles.mapImage}
           />
-        </View>
 
-        <View style={styles.routesCard}>
-          <Text style={styles.routesTitle}>PICKED ROUTES</Text>
-          <FlatList
-            data={LVIV_ROUTES}
-            renderItem={({ item }) => <RouteCard item={item} />}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.routesList}
-            showsVerticalScrollIndicator={false}
-          />
+          {/* Інтерактивна кнопка PICKED ROUTES із вираженою підсвіткою/тінню */}
+          <TouchableOpacity
+            style={styles.routesHeader}
+            activeOpacity={0.85}
+            onPress={() => setIsRoutesOpen((prev) => !prev)}
+          >
+            <Text style={styles.routesTitle}>PICKED ROUTES</Text>
+            <Text style={styles.arrowIcon}>{isRoutesOpen ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+
+          {/* Випадаючий список із заокругленими нижніми кутами та підсвіткою */}
+          {isRoutesOpen && (
+            <View style={styles.dropdownContainer}>
+              <FlatList
+                data={LVIV_ROUTES}
+                renderItem={({ item }) => <RouteCard item={item} />}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={styles.routesList}
+                showsVerticalScrollIndicator={true}
+              />
+            </View>
+          )}
         </View>
       </View>
 
@@ -109,34 +136,81 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 10,
-    gap: 14,
   },
   mapContainer: {
-    flex: 1.1,
+    flex: 1,
     borderWidth: 1.5,
     borderColor: COLORS.borderBronze,
     borderRadius: 16,
-    overflow: 'hidden',
+    position: 'relative',
+    // Окремо залишаємо радіуси карти
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   mapImage: {
     width: '100%',
     height: '100%',
+    borderRadius: 14,
   },
-  routesCard: {
-    flex: 0.9,
-    backgroundColor: COLORS.backgroundPergament,
-    borderWidth: 1.5,
-    borderColor: COLORS.borderBronze,
-    borderRadius: 16,
-    padding: 12,
+  routesHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.buttonBrown,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(218, 165, 32, 0.6)', // Тонка золотиста лінія підсвітки кнопки
+    zIndex: 10,
+    // Нативна підсвітка / тінь в колір кнопки
+    shadowColor: COLORS.buttonBrown,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.5,
+    shadowRadius: 7,
+    elevation: 10,
   },
   routesTitle: {
-    textAlign: 'center',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
-    color: COLORS.textDark,
-    letterSpacing: 1,
-    marginBottom: 8,
+    color: COLORS.white,
+    letterSpacing: 1.2,
+    textAlign: 'center',
+  },
+  arrowIcon: {
+    position: 'absolute',
+    right: 16,
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  dropdownContainer: {
+    position: 'absolute',
+    top: 46,
+    left: 0,
+    right: 0,
+    maxHeight: 290,
+    backgroundColor: 'rgba(245, 240, 225, 0.96)',
+    borderWidth: 1.5,
+    borderTopWidth: 0,
+    borderColor: COLORS.borderBronze,
+    // Заокруглені нижні кутики
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+    padding: 10,
+    zIndex: 9,
+    // Підсвітка та тінь для випадаючого вікна
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 12,
   },
   routesList: {
     gap: 10,

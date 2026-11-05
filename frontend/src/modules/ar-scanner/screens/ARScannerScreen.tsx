@@ -45,7 +45,7 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         {...(Platform.OS === 'android' ? { backgroundColor: COLORS.primaryGreen } : {})}
       />
 
-      {/* Потік живильної камери */}
+      {/* Потік камери */}
       <View style={styles.videoContainer}>
         <Camera
           style={StyleSheet.absoluteFill}
@@ -107,10 +107,13 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         )}
       </View>
 
+      {/* Футер: на екрані камери замість CAM показуємо SITES */}
       <FooterNav
         navigation={navigation}
-        rightTabLabel="SITES"
-        rightTabTarget="Landmarks"
+        leftTabLabel="SITES"
+        leftTabTarget="Landmarks"
+        rightTabLabel="MAP"
+        rightTabTarget="Map"
       />
     </View>
   );
@@ -118,9 +121,9 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000000' },
-  videoContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  videoContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 },
   topHeaderBar: { height: Platform.OS === 'ios' ? 44 : 24, backgroundColor: COLORS.primaryGreen, width: '100%', zIndex: 10 },
-  contentContainer: { flex: 1, paddingHorizontal: 20, justifyContent: 'center', alignItems: 'center' },
+  contentContainer: { flex: 1, paddingHorizontal: 20, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
   pinButton: { alignItems: 'center', justifyContent: 'center' },
   pinOuterPulse: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(218, 165, 32, 0.35)', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.6)' },
   pinInnerCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primaryGreen, justifyContent: 'center', alignItems: 'center', elevation: 8 },

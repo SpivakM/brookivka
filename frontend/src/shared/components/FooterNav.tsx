@@ -1,85 +1,119 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../constants/theme';
 
 interface FooterNavProps {
   navigation?: any;
+  leftTabLabel?: 'CAM' | 'SITES';
+  leftTabTarget?: string;
   rightTabLabel?: 'MAP' | 'SITES';
   rightTabTarget?: string;
 }
 
 export const FooterNav: React.FC<FooterNavProps> = ({
-  navigation,
+  leftTabLabel = 'CAM',
+  leftTabTarget = 'ARScanner',
   rightTabLabel = 'MAP',
   rightTabTarget = 'Map',
 }) => {
+  const navigation = useNavigation<any>();
   const ICON_COLOR = COLORS.iconBronze;
+
+  // Иконка списка с точками (для MENU)
+  const renderListIcon = () => (
+    <View style={styles.menuIconContainer}>
+      <View style={styles.menuDotRow}>
+        <View style={[styles.menuDot, { backgroundColor: ICON_COLOR }]} />
+        <View style={[styles.menuLine, { backgroundColor: ICON_COLOR }]} />
+      </View>
+      <View style={styles.menuDotRow}>
+        <View style={[styles.menuDot, { backgroundColor: ICON_COLOR }]} />
+        <View style={[styles.menuLine, { backgroundColor: ICON_COLOR }]} />
+      </View>
+      <View style={styles.menuDotRow}>
+        <View style={[styles.menuDot, { backgroundColor: ICON_COLOR }]} />
+        <View style={[styles.menuLine, { backgroundColor: ICON_COLOR }]} />
+      </View>
+    </View>
+  );
+
+  // Кастомная иконка церкви (для SITES)
+  const renderChurchIcon = () => (
+    <View style={styles.churchIconContainer}>
+      {/* Крестик */}
+      <View style={[styles.churchCrossVertical, { backgroundColor: ICON_COLOR }]} />
+      <View style={[styles.churchCrossHorizontal, { backgroundColor: ICON_COLOR }]} />
+      {/* Купол */}
+      <View style={[styles.churchDome, { backgroundColor: ICON_COLOR }]} />
+      {/* Основное здание */}
+      <View style={[styles.churchBody, { backgroundColor: ICON_COLOR }]}>
+        {/* Дверь / Арка */}
+        <View style={[styles.churchDoor, { backgroundColor: COLORS.footerBackground }]} />
+      </View>
+    </View>
+  );
 
   return (
     <SafeAreaView edges={['bottom']} style={styles.footerSafeArea}>
       <View style={styles.bottomBar}>
-        {/* CAM */}
+        {/* ЛЕВАЯ КНОПКА (CAM или SITES) */}
         <TouchableOpacity
           style={styles.navButton}
-          onPress={() => navigation?.navigate('ARScanner')}
+          onPress={() => navigation.navigate(leftTabTarget)}
           activeOpacity={0.7}
         >
-          <View style={[styles.camIconOuter, { backgroundColor: ICON_COLOR }]}>
-            <View style={styles.camIconInner} />
-          </View>
-          <Text style={[styles.navText, { color: ICON_COLOR }]}>CAM</Text>
+          {leftTabLabel === 'CAM' ? (
+            <View style={[styles.camIconOuter, { backgroundColor: ICON_COLOR }]}>
+              <View style={styles.camIconInner} />
+            </View>
+          ) : (
+            renderChurchIcon()
+          )}
+          <Text style={[styles.navText, { color: ICON_COLOR }]}>{leftTabLabel}</Text>
         </TouchableOpacity>
 
-        {/* MENU */}
+        {/* ЦЕНТРАЛЬНАЯ КНОПКА (MENU) */}
         <TouchableOpacity
           style={styles.navButton}
-          onPress={() => navigation?.navigate('Entry')}
+          onPress={() => navigation.navigate('Entry')}
           activeOpacity={0.7}
         >
-          <View style={styles.menuIconContainer}>
-            <View style={styles.menuDotRow}>
-              <View style={[styles.menuDot, { backgroundColor: ICON_COLOR }]} />
-              <View style={[styles.menuLine, { backgroundColor: ICON_COLOR }]} />
-            </View>
-            <View style={styles.menuDotRow}>
-              <View style={[styles.menuDot, { backgroundColor: ICON_COLOR }]} />
-              <View style={[styles.menuLine, { backgroundColor: ICON_COLOR }]} />
-            </View>
-            <View style={styles.menuDotRow}>
-              <View style={[styles.menuDot, { backgroundColor: ICON_COLOR }]} />
-              <View style={[styles.menuLine, { backgroundColor: ICON_COLOR }]} />
-            </View>
-          </View>
+          {renderListIcon()}
           <Text style={[styles.navText, { color: ICON_COLOR }]}>MENU</Text>
         </TouchableOpacity>
 
-        {/* MAP / SITES */}
+        {/* ПРАВАЯ КНОПКА (MAP или SITES) */}
         <TouchableOpacity
           style={styles.navButton}
-          onPress={() => navigation?.navigate(rightTabTarget)}
+          onPress={() => navigation.navigate(rightTabTarget)}
           activeOpacity={0.7}
         >
-          <View style={styles.mapIconContainer}>
-            <View
-              style={[
-                styles.mapSegment,
-                { backgroundColor: ICON_COLOR, transform: [{ skewY: '-12deg' }] },
-              ]}
-            />
-            <View
-              style={[
-                styles.mapSegment,
-                { backgroundColor: ICON_COLOR, transform: [{ skewY: '12deg' }] },
-              ]}
-            />
-            <View
-              style={[
-                styles.mapSegment,
-                { backgroundColor: ICON_COLOR, transform: [{ skewY: '-12deg' }] },
-              ]}
-            />
-          </View>
+          {rightTabLabel === 'MAP' ? (
+            <View style={styles.mapIconContainer}>
+              <View
+                style={[
+                  styles.mapSegment,
+                  { backgroundColor: ICON_COLOR, transform: [{ skewY: '-12deg' }] },
+                ]}
+              />
+              <View
+                style={[
+                  styles.mapSegment,
+                  { backgroundColor: ICON_COLOR, transform: [{ skewY: '12deg' }] },
+                ]}
+              />
+              <View
+                style={[
+                  styles.mapSegment,
+                  { backgroundColor: ICON_COLOR, transform: [{ skewY: '-12deg' }] },
+                ]}
+              />
+            </View>
+          ) : (
+            renderChurchIcon()
+          )}
           <Text style={[styles.navText, { color: ICON_COLOR }]}>{rightTabLabel}</Text>
         </TouchableOpacity>
       </View>
@@ -97,13 +131,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 6,
     elevation: 10,
+    zIndex: 20,
   },
   bottomBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingTop: 10,
+    paddingBottom: 10,
   },
   navButton: {
     alignItems: 'center',
@@ -117,6 +152,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.8,
   },
+  // CAM
   camIconOuter: {
     width: 32,
     height: 24,
@@ -131,6 +167,7 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
     borderColor: COLORS.footerBackground,
   },
+  // MENU
   menuIconContainer: {
     width: 28,
     height: 24,
@@ -151,6 +188,7 @@ const styles = StyleSheet.create({
     height: 3.5,
     borderRadius: 2,
   },
+  // MAP
   mapIconContainer: {
     width: 30,
     height: 24,
@@ -162,5 +200,47 @@ const styles = StyleSheet.create({
     width: 8,
     height: 22,
     borderRadius: 1.5,
+  },
+  // CHURCH (SITES)
+  churchIconContainer: {
+    width: 26,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  churchCrossVertical: {
+    position: 'absolute',
+    top: 0,
+    width: 2,
+    height: 6,
+    borderRadius: 1,
+  },
+  churchCrossHorizontal: {
+    position: 'absolute',
+    top: 1.5,
+    width: 5,
+    height: 2,
+    borderRadius: 1,
+  },
+  churchDome: {
+    width: 12,
+    height: 7,
+    borderTopLeftRadius: 6,
+    borderTopRightRadius: 6,
+    marginBottom: 0,
+  },
+  churchBody: {
+    width: 22,
+    height: 11,
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  churchDoor: {
+    width: 6,
+    height: 7,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
   },
 });
