@@ -4,9 +4,7 @@ import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { LandmarkCard, Landmark } from '../components/LandmarkCard';
 import { COLORS } from '../../../shared/constants/theme';
-
-// URL бекенду для Android-емулятора (порт 8082)
-const API_URL = 'http://192.168.1.179:8082/api/landmarks/nearby';
+import { API_BASE_URL } from '../../../shared/constants/apiConfig';
 
 interface LandmarksScreenProps {
   navigation?: any;
@@ -24,7 +22,7 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
       try {
         setLoading(true);
         const response = await fetch(
-          `${API_URL}?lat=49.8418&lng=24.0316&radius=1000`
+          `${API_BASE_URL}/api/landmarks/nearby?lat=49.8418&lng=24.0316&radius=1000`
         );
 
         if (!response.ok) {
