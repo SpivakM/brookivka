@@ -8,7 +8,7 @@ import {
   Platform,
   Image,
 } from 'react-native';
-import Video from 'react-native-video';
+import { Camera, CameraType } from 'react-native-camera-kit';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { COLORS } from '../../../shared/constants/theme';
 
@@ -16,10 +16,6 @@ interface ARScannerScreenProps {
   navigation?: any;
 }
 
-// Пряме відео-заглушка під камеру
-const MOCK_AR_VIDEO = 'https://vjs.zencdn.net/v/oceans.mp4';
-
-// Дані пам'ятки (надалі підтягуватимуться з БД чи API)
 const MOCK_LANDMARK = {
   id: 'lviv_opera',
   title: 'Львівська опера',
@@ -34,7 +30,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
   const [isCardVisible, setIsCardVisible] = useState(false);
 
   const handleOpenAiGuide = () => {
-    // Закриваємо модалку та переходимо на екран чату з AI
     setIsCardVisible(false);
     navigation?.navigate('AIGuide', {
       landmarkId: MOCK_LANDMARK.id,
@@ -50,27 +45,20 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         {...(Platform.OS === 'android' ? { backgroundColor: COLORS.primaryGreen } : {})}
       />
 
-      {/* Фоновий відео-потік (заглушка замість VisionCamera) */}
+      {/* Потік живильної камери */}
       <View style={styles.videoContainer}>
-        <Video
-          source={{ uri: MOCK_AR_VIDEO }}
-          style={styles.backgroundVideo}
-          resizeMode="cover"
-          repeat
-          muted
-          paused={false}
-          playInBackground={false}
-          playWhenInactive={false}
-          ignoreSilentSwitch="ignore"
+        <Camera
+          style={StyleSheet.absoluteFill}
+          cameraType={CameraType.Back}
+          flashMode="auto"
+          focusMode="on"
         />
       </View>
 
-      {/* Верхня статус-панель */}
       <View style={styles.topHeaderBar} />
 
-      {/* Робоча AR-зона з інтерактивними мітками */}
+      {/* AR Оверлей */}
       <View style={styles.contentContainer}>
-        {/* AR-маркер / Іконка пам'ятки в просторі */}
         {!isCardVisible && (
           <TouchableOpacity
             style={styles.pinButton}
@@ -88,7 +76,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
           </TouchableOpacity>
         )}
 
-        {/* Картка з інформацією та переходом до AI-гіда */}
         {isCardVisible && (
           <View style={styles.detectedCard}>
             <TouchableOpacity
@@ -120,7 +107,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         )}
       </View>
 
-      {/* Футер-навігація */}
       <FooterNav
         navigation={navigation}
         rightTabLabel="SITES"
@@ -131,154 +117,24 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
 };
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  videoContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  backgroundVideo: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  topHeaderBar: {
-    height: Platform.OS === 'ios' ? 44 : 24,
-    backgroundColor: COLORS.primaryGreen,
-    width: '100%',
-    zIndex: 10,
-  },
-  contentContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Стилі круглої іконки-мітки AR
-  pinButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pinOuterPulse: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(218, 165, 32, 0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-  },
-  pinInnerCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.primaryGreen,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-  },
-  pinIconText: {
-    fontSize: 20,
-  },
-  pinLabelBadge: {
-    marginTop: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.borderBronze,
-  },
-  pinLabelText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  // Стилі спливаючої інформаційної картки
-  detectedCard: {
-    width: '100%',
-    maxWidth: 320,
-    backgroundColor: COLORS.backgroundPergament,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: COLORS.borderBronze,
-    padding: 14,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  closeButton: {
-    position: 'absolute',
-    top: 10,
-    right: 12,
-    zIndex: 5,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: 'bold',
-    lineHeight: 16,
-  },
-  cardImage: {
-    width: '100%',
-    height: 130,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.textDark,
-    marginBottom: 2,
-  },
-  cardSubtitle: {
-    fontSize: 12,
-    color: COLORS.buttonBrown,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  cardDescription: {
-    fontSize: 13,
-    lineHeight: 18,
-    color: COLORS.textDark,
-    marginBottom: 14,
-  },
-  aiButton: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.primaryGreen,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiButtonIcon: {
-    marginRight: 6,
-    fontSize: 16,
-  },
-  aiButtonText: {
-    color: COLORS.white,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+  root: { flex: 1, backgroundColor: '#000000' },
+  videoContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  topHeaderBar: { height: Platform.OS === 'ios' ? 44 : 24, backgroundColor: COLORS.primaryGreen, width: '100%', zIndex: 10 },
+  contentContainer: { flex: 1, paddingHorizontal: 20, justifyContent: 'center', alignItems: 'center' },
+  pinButton: { alignItems: 'center', justifyContent: 'center' },
+  pinOuterPulse: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(218, 165, 32, 0.35)', justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.6)' },
+  pinInnerCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.primaryGreen, justifyContent: 'center', alignItems: 'center', elevation: 8 },
+  pinIconText: { fontSize: 20 },
+  pinLabelBadge: { marginTop: 6, backgroundColor: 'rgba(0, 0, 0, 0.75)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: COLORS.borderBronze },
+  pinLabelText: { color: COLORS.white, fontSize: 12, fontWeight: 'bold' },
+  detectedCard: { width: '100%', maxWidth: 320, backgroundColor: COLORS.backgroundPergament, borderRadius: 18, borderWidth: 2, borderColor: COLORS.borderBronze, padding: 14, elevation: 10 },
+  closeButton: { position: 'absolute', top: 10, right: 12, zIndex: 5, backgroundColor: 'rgba(0,0,0,0.4)', width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  closeButtonText: { color: COLORS.white, fontSize: 14, fontWeight: 'bold' },
+  cardImage: { width: '100%', height: 130, borderRadius: 12, marginBottom: 10 },
+  cardTitle: { fontSize: 18, fontWeight: 'bold', color: COLORS.textDark, marginBottom: 2 },
+  cardSubtitle: { fontSize: 12, color: COLORS.buttonBrown, fontWeight: '600', marginBottom: 8 },
+  cardDescription: { fontSize: 13, lineHeight: 18, color: COLORS.textDark, marginBottom: 14 },
+  aiButton: { flexDirection: 'row', backgroundColor: COLORS.primaryGreen, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  aiButtonIcon: { marginRight: 6, fontSize: 16 },
+  aiButtonText: { color: COLORS.white, fontSize: 14, fontWeight: 'bold' },
 });

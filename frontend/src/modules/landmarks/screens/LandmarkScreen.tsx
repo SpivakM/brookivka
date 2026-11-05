@@ -1,54 +1,12 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, StatusBar, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, FlatList, StatusBar, Platform, ActivityIndicator, Text } from 'react-native';
 import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { LandmarkCard, Landmark } from '../components/LandmarkCard';
 import { COLORS } from '../../../shared/constants/theme';
 
-const LVIV_LANDMARKS: Landmark[] = [
-  {
-    id: '1',
-    title: 'Lviv Opera House',
-    description: 'Architectural gem of Lviv and grand opera theater',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_yGuOXzdFdT0u1emI3lPiX0zK26AyKB6uvGPdY2Fgqg&s=10',
-  },
-  {
-    id: '2',
-    title: 'Rynok Square',
-    description: 'Historic heart of the city with Renaissance architecture',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRWGY1SdocOFMh02a6ZZZyGhfQ22pO6cVGCeFyFSKOnpA&s=10',
-  },
-  {
-    id: '3',
-    title: 'Dominican Cathedral',
-    description: 'Magnificent Baroque cathedral with a majestic dome',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ-Dy2tUIS2Do-kOJCsCVAuhpL795IHI_Rdp7ycsXB9Vw&s=10',
-  },
-  {
-    id: '4',
-    title: 'High Castle Park',
-    description: 'Historic park on a hill offering panoramic views of Lviv',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPJbPu60Mx0ln7It5LOPlZXSrL3HcjcJec-IFvb6czjA&s=10',
-  },
-  {
-    id: '5',
-    title: 'St. George Cathedral',
-    description: 'Masterpiece of Rococo architecture and Greek Catholic hub',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHJWHwmvbgi-i-ACccxNHForha-8Tf81WV-ChjwuTQ0A&s=10',
-  },
-  {
-    id: '6',
-    title: 'Boim Chapel',
-    description: 'Unique Renaissance chapel with intricate stone carvings',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcf_IAOtqX8FC6jhhSe17Ip4xXvwHUdgagNLt7ZlljxA&s=10',
-  },
-  {
-    id: '7',
-    title: 'Lychakiv Cemetery',
-    description: 'Historic necropolis museum with breathtaking sculpture art',
-    imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQEanChlCpoVtRIy6cqRFaFB5slNI_OmeJwRpiD4Fjelg&s=10',
-  },
-];
+// URL бекенду для Android-емулятора (порт 8082)
+const API_URL = 'http://192.168.1.179:8082/api/landmarks/nearby';
 
 interface LandmarksScreenProps {
   navigation?: any;
@@ -56,6 +14,42 @@ interface LandmarksScreenProps {
 
 export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [landmarks, setLandmarks] = useState<Landmark[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Координати центру Львова для запиту
+    const fetchLandmarks = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(
+          `${API_URL}?lat=49.8418&lng=24.0316&radius=1000`
+        );
+
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+
+        const data: Landmark[] = await response.json();
+        setLandmarks(data);
+      } catch (err: any) {
+        console.error('Failed to fetch landmarks:', err);
+        setError('Не вдалося завантажити дані з сервера');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLandmarks();
+  }, []);
+
+  // Локальна фільтрація списку за назвою або описом
+  const filteredLandmarks = landmarks.filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.description.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <View style={styles.root}>
@@ -71,13 +65,23 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
       />
 
       <View style={styles.body}>
-        <FlatList
-          data={LVIV_LANDMARKS}
-          renderItem={({ item }) => <LandmarkCard item={item} />}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listPadding}
-          showsVerticalScrollIndicator={true}
-        />
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={COLORS.borderBronze} />
+          </View>
+        ) : error ? (
+          <View style={styles.centerContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredLandmarks}
+            renderItem={({ item }) => <LandmarkCard item={item} />}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listPadding}
+            showsVerticalScrollIndicator={true}
+          />
+        )}
       </View>
 
       <FooterNav
@@ -96,6 +100,17 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: 'red',
+    fontSize: 16,
+    textAlign: 'center',
   },
   listPadding: {
     paddingHorizontal: 18,

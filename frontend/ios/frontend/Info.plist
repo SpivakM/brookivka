@@ -74,5 +74,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Застосунку потрібен доступ до камери для функцій AR-сканера.</string>
 </dict>
 </plist>
