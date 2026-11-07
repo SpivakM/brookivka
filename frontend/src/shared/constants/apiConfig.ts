@@ -1,16 +1,9 @@
-const PORT = '8082';
+import Config from 'react-native-config';
 
-/**
- * Завдяки ADB Reverse (`adb reverse tcp:8082 tcp:8082`) 
- * і фізичний Android-телефон, і емулятор, і iOS-симулятор 
- * стукають на комп'ютер через єдиний localhost!
- */
-const getBaseUrl = (): string => {
-  if (!__DEV__) {
-    return 'https://api.brookivka.com'; // Продакшн сервер
-  }
+export const API_BASE_URL = Config.API_URL || '';
 
-  return `http://localhost:${PORT}`;
-};
-
-export const API_BASE_URL = getBaseUrl();
+if (!API_BASE_URL) {
+  console.warn('[API Config] WARNING: API_URL is undefined in react-native-config!');
+} else {
+  console.log('[API Config] Dynamically loaded API_URL:', API_BASE_URL);
+}

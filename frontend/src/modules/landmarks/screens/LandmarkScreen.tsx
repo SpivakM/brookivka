@@ -29,19 +29,21 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(
-        `${API_BASE_URL}/api/landmarks/nearby?lat=49.8418&lng=24.0316&radius=1000`
-      );
+      const url = `${API_BASE_URL}/api/landmarks/nearby?lat=49.8418&lng=24.0316&radius=1000`;
+      console.log('Fetching landmarks from:', url);
+
+      const response = await fetch(url);
 
       if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
+        throw new Error(`HTTP status: ${response.status}`);
       }
 
       const data: Landmark[] = await response.json();
       setLandmarks(data);
     } catch (err: any) {
       console.error('Failed to fetch landmarks:', err);
-      setError('Не вдалося завантажити дані з сервера');
+      // Показуємо повний URL і текст помилки безпосередньо на екрані пристрою
+      setError(`[${API_BASE_URL}] ${err.message || 'Network error'}`);
     } finally {
       setLoading(false);
     }
