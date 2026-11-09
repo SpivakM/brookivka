@@ -5,7 +5,9 @@ import lombok.*;
 import org.locationtech.jts.geom.Point;
 
 @Entity
-@Table(name = "landmarks")
+@Table(name = "landmarks", indexes = {
+        @Index(name = "idx_landmarks_location", columnList = "location")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -21,6 +23,9 @@ public class Landmark {
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "full_description", columnDefinition = "TEXT")
+    private String fullDescription;
 
     @Column(name = "architecture_style")
     private String architectureStyle;

@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: ar_postgis_db
+    restart: always
+    environment:
+      POSTGRES_DB: ar_tourist_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ar_tourist_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ar_backend_app
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ar_tourist_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres_password
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
