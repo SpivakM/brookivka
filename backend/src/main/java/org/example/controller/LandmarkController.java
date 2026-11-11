@@ -29,6 +29,7 @@ public class LandmarkController {
                 .id(l.getId())
                 .name(l.getName())
                 .description(l.getDescription())
+                .fullDescription(l.getFullDescription())
                 .architectureStyle(l.getArchitectureStyle())
                 .buildYear(l.getBuildYear())
                 .photoUrl(l.getPhotoUrl())
