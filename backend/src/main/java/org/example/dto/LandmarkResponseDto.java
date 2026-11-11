@@ -9,6 +9,7 @@ public class LandmarkResponseDto {
     private Long id;
     private String name;
     private String description;
+    private String fullDescription;
     private String architectureStyle;
     private Integer buildYear;
     private String photoUrl;
