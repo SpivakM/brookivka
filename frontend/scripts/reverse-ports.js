@@ -1,6 +1,6 @@
 const { execSync } = require('child_process');
 
-const BACKEND_PORT = 8082; // Твій порт бекенду
+const PORTS = [8081, 8082]; // Прокидаємо і Metro (8081), і backend (8082)
 
 try {
   const output = execSync('adb devices').toString();
@@ -16,12 +16,14 @@ try {
   }
 
   devices.forEach(device => {
-    try {
-      execSync(`adb -s ${device} reverse tcp:${BACKEND_PORT} tcp:${BACKEND_PORT}`);
-      console.log(`✅ ADB: Port ${BACKEND_PORT} successfully reversed for device ${device}`);
-    } catch (e) {
-      console.error(`❌ ADB: Failed to reverse port ${BACKEND_PORT} for device ${device}`);
-    }
+    PORTS.forEach(port => {
+      try {
+        execSync(`adb -s ${device} reverse tcp:${port} tcp:${port}`);
+        console.log(`✅ ADB: Port ${port} reversed for ${device}`);
+      } catch (e) {
+        console.error(`❌ ADB: Failed to reverse port ${port} for ${device}`);
+      }
+    });
   });
 } catch (error) {
   console.error('ADB Execution Error:', error.message);

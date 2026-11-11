@@ -42,6 +42,8 @@ out/
 *.swp
 
 .env
+.env.development
+.env.production
 .env.local
 .env.*.local
 *.pem
