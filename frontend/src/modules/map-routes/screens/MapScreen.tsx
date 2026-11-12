@@ -13,6 +13,7 @@ import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { RouteCard, RouteItem } from '../components/RouteCard';
 import { COLORS } from '../../../shared/constants/theme';
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 const LVIV_INITIAL_REGION = {
   latitude: 49.842957,
@@ -74,25 +75,23 @@ interface MapScreenProps {
 }
 
 export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
+  const { colors, themeMode } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [isRoutesOpen, setIsRoutesOpen] = useState(false);
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar
         barStyle="light-content"
         {...(Platform.OS === 'android' ? { backgroundColor: COLORS.primaryGreen } : {})}
       />
-
       <HeaderWithFilter
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         placeholder="Search sites, routes, or areas..."
       />
-
       <View style={styles.body}>
         <View style={styles.mapContainer}>
-          {/* ІНТЕРАКТИВНА КАРТА ЗАМІСТЬ ІМІДЖУ */}
           <MapView
             provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
             style={styles.mapImage}
@@ -102,11 +101,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
           >
             <Marker
               coordinate={{ latitude: 49.8419, longitude: 24.0297 }}
-              title="Львівська Опера"
+              title="Площа Ринок"
             />
           </MapView>
 
-          {/* Кнопка-шапка PICKED ROUTES */}
+          {/* Кнопка PICKED ROUTES */}
           <TouchableOpacity
             style={styles.routesHeader}
             activeOpacity={0.85}
@@ -116,9 +115,19 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
             <Text style={styles.arrowIcon}>{isRoutesOpen ? '▲' : '▼'}</Text>
           </TouchableOpacity>
 
-          {/* Випадаючий список */}
+          {/* Випадаючий список маршрутів */}
           {isRoutesOpen && (
-            <View style={styles.dropdownContainer}>
+            <View
+              style={[
+                styles.dropdownContainer,
+                {
+                  backgroundColor:
+                    themeMode === 'dark'
+                      ? 'rgba(15, 33, 24, 0.96)'
+                      : 'rgba(245, 240, 225, 0.96)',
+                },
+              ]}
+            >
               <FlatList
                 data={LVIV_ROUTES}
                 renderItem={({ item }) => <RouteCard item={item} />}
@@ -130,7 +139,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
           )}
         </View>
       </View>
-
       <FooterNav
         navigation={navigation}
         rightTabLabel="SITES"
