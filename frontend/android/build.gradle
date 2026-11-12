@@ -27,7 +27,7 @@ allprojects {
     }
 }
 
-def customBuildRoot = new File(System.getProperty("java.io.tmpdir"), "BrooBuild")
+def customBuildRoot = new File(rootProject.projectDir, "../../../../../BrooBuild").canonicalFile
 
 subprojects { subproject ->
     if (subproject.name == "app") {
