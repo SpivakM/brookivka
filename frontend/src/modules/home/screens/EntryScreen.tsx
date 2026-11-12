@@ -2,12 +2,16 @@ import React from 'react';
 import { View, StyleSheet, StatusBar, Platform } from 'react-native';
 import Video from 'react-native-video';
 import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../../navigation/types';
 import { HeaderNav } from '../../../shared/components/HeaderNav';
 import { EntryCard } from '../components/EntryCard';
 import { COLORS } from '../../../shared/constants/theme';
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 export const EntryScreen: React.FC = () => {
-  const navigation = useNavigation<any>();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { themeMode } = useTheme();
 
   return (
     <View style={styles.container}>
@@ -17,8 +21,6 @@ export const EntryScreen: React.FC = () => {
           ? { translucent: true, backgroundColor: 'transparent' }
           : {})}
       />
-
-      {/* Локальне фонове відео */}
       <Video
         source={require('../../../assets/videos/background_video_1.mp4')}
         style={styles.backgroundMedia}
@@ -28,27 +30,28 @@ export const EntryScreen: React.FC = () => {
         rate={1.0}
         ignoreSilentSwitch="obey"
       />
-
-      {/* Напівпрозоре тонування поверх відео */}
-      <View style={styles.videoOverlay} />
-
-      {/* 1. Шапка з shared */}
-      <HeaderNav
-        onSettingsPress={() => console.log('Open Settings')}
-        onProfilePress={() => console.log('Open Profile')}
+      <View
+        style={[
+          styles.videoOverlay,
+          {
+            backgroundColor:
+              themeMode === 'dark'
+                ? 'rgba(15, 33, 24, 0.55)'
+                : 'rgba(247, 244, 235, 0.45)',
+          },
+        ]}
       />
-
-      {/* 2. Контентна частина */}
+      <HeaderNav
+        onSettingsPress={() => navigation.navigate('Settings')}
+        onProfilePress={() => navigation.navigate('Register')}
+      />
       <View style={styles.content}>
-        {/* Головна картка AR Scanner */}
         <EntryCard
           title="AR Scanner"
           imageSource={require('../../../assets/images/ar_preview.jpg')}
           imageHeight={230}
           onPress={() => navigation.navigate('ARScanner')}
         />
-
-        {/* Нижня сітка з двох карток */}
         <View style={styles.row}>
           <EntryCard
             title="Map"
@@ -57,7 +60,6 @@ export const EntryScreen: React.FC = () => {
             onPress={() => navigation.navigate('Map')}
             style={styles.flexCard}
           />
-
           <EntryCard
             title="Landmarks"
             imageSource={require('../../../assets/images/landmarks_preview.jpg')}

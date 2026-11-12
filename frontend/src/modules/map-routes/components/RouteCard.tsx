@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../../shared/constants/theme';
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 export type RouteItem = {
   id: string;
@@ -15,19 +16,29 @@ interface RouteCardProps {
   item: RouteItem;
 }
 
-export const RouteCard = React.memo(({ item }: RouteCardProps) => (
-  <TouchableOpacity style={styles.routeItem} activeOpacity={0.85}>
-    <Image source={{ uri: item.imageUrl }} style={styles.routeImage} />
-    <View style={styles.routeInfo}>
-      <Text style={styles.routeTitle}>{item.title}</Text>
-      <View style={styles.routeMeta}>
-        <Text style={styles.metaText}>↔ {item.distance}</Text>
-        <Text style={styles.metaText}>⏱ {item.duration}</Text>
-        <Text style={styles.metaText}>★ {item.rating}</Text>
+export const RouteCard = React.memo(({ item }: RouteCardProps) => {
+  const { colors, themeMode } = useTheme();
+
+  return (
+    <TouchableOpacity
+      style={[
+        styles.routeItem,
+        { backgroundColor: themeMode === 'dark' ? colors.card : COLORS.backgroundPergament },
+      ]}
+      activeOpacity={0.85}
+    >
+      <Image source={{ uri: item.imageUrl }} style={styles.routeImage} />
+      <View style={styles.routeInfo}>
+        <Text style={[styles.routeTitle, { color: colors.textPrimary }]}>{item.title}</Text>
+        <View style={styles.routeMeta}>
+          <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.distance}</Text>
+          <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.duration}</Text>
+          <Text style={[styles.metaText, { color: colors.textSecondary }]}>★ {item.rating}</Text>
+        </View>
       </View>
-    </View>
-  </TouchableOpacity>
-));
+    </TouchableOpacity>
+  );
+});
 
 const styles = StyleSheet.create({
   routeItem: {

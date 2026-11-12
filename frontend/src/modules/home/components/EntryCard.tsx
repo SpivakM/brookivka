@@ -10,6 +10,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { COLORS } from '../../../shared/constants/theme';
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 interface EntryCardProps {
   title: string;
@@ -28,17 +29,35 @@ export const EntryCard: React.FC<EntryCardProps> = ({
   imageHeight = 105,
   style,
 }) => {
+  const { colors, themeMode } = useTheme();
+
   return (
     <TouchableOpacity
-      style={[styles.card, style]}
+      style={[
+        styles.card,
+        {
+          backgroundColor:
+            themeMode === 'dark' ? 'rgba(26, 61, 47, 0.92)' : 'rgba(255, 255, 255, 0.95)',
+        },
+        style,
+      ]}
       activeOpacity={0.9}
       onPress={onPress}
     >
       <View style={[styles.imageContainer, { height: imageHeight }]}>
         <Image source={imageSource} style={styles.image} resizeMode="cover" />
       </View>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      <Text
+        style={[
+          styles.title,
+          { color: themeMode === 'dark' ? colors.accentGold : COLORS.primaryGreen },
+        ]}
+      >
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+      ) : null}
     </TouchableOpacity>
   );
 };

@@ -4,4 +4,7 @@ export type RootStackParamList = {
   Map: undefined;
   Landmarks: undefined;
   AIGuide: { landmarkId?: string };
+  Settings: undefined;
+  Register: undefined;
+  Login: undefined;
 };

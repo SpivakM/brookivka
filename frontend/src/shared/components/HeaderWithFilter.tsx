@@ -24,14 +24,14 @@ export const HeaderWithFilter: React.FC<HeaderWithFilterProps> = ({
           <TextInput
             style={styles.searchInput}
             placeholder={placeholder}
-            placeholderTextColor="#888"
+            placeholderTextColor={COLORS.borderBronze}
             value={searchQuery}
             onChangeText={onSearchChange}
           />
         </View>
 
-        <TouchableOpacity 
-          style={styles.filterButton} 
+        <TouchableOpacity
+          style={styles.filterButton}
           activeOpacity={0.85}
           onPress={onFilterPress}
         >
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.footerBackground,
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 46,
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: COLORS.textDark,
+    color: COLORS.buttonBrown,
   },
   filterButton: {
     width: 44,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../../shared/constants/theme';
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 export type Landmark = {
   id: number;
@@ -19,30 +20,38 @@ interface LandmarkCardProps {
   onPress?: () => void;
 }
 
-// Хардкоджені посилання на картинки для заповнення null з БД
 const HARDCODED_IMAGES: Record<number, string> = {
-  1: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTIbwwFqXCGRAgiQ9KjqYinRDFLwGsXBojPZ_i3rmeO_w&s=10', // Львівська Ратуша
-  2: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTKdftePnxCJdyyAGJUEz2LPhIFZDVnU_wGc8nd8lXssg&s=10', // Оперний Театр
-  3: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2d3GErGVI_LB_59QsdUyhs6JFotdzCgT_p7xVKJrtaw&s=10', // Латинський Собор
+  1: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTIbwwFqXCGRAgiQ9KjqYinRDFLwGsXBojPZ_i3rmeO_w&s=10',
+  2: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTKdftePnxCJdyyAGJUEz2LPhIFZDVnU_wGc8nd8lXssg&s=10',
+  3: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2d3GErGVI_LB_59QsdUyhs6JFotdzCgT_p7xVKJrtaw&s=10',
 };
 
 const DEFAULT_IMAGE = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_yGuOXzdFdT0u1emI3lPiX0zK26AyKB6uvGPdY2Fgqg&s=10';
 
 export const LandmarkCard = React.memo(({ item, onPress }: LandmarkCardProps) => {
-  // Логіка вибору фото: photoUrl з БД -> якщо null, беремо з HARDCODED_IMAGES -> дефолтне фото
+  const { colors, themeMode } = useTheme();
   const imageUrl = item.photoUrl || HARDCODED_IMAGES[item.id] || DEFAULT_IMAGE;
 
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.88} onPress={onPress}>
-      <Image 
-        source={{ uri: imageUrl }} 
-        style={styles.cardImage} 
-      />
+    <TouchableOpacity
+      style={[
+        styles.card,
+        { backgroundColor: themeMode === 'dark' ? colors.card : COLORS.backgroundPergament },
+      ]}
+      activeOpacity={0.88}
+      onPress={onPress}
+    >
+      <Image source={{ uri: imageUrl }} style={styles.cardImage} />
       <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.name}</Text>
-        
+        <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{item.name}</Text>
+
         {(item.category || item.buildYear) && (
-          <Text style={styles.cardSubTitle}>
+          <Text
+            style={[
+              styles.cardSubTitle,
+              { color: themeMode === 'dark' ? colors.accentGold : COLORS.buttonBrown },
+            ]}
+          >
             {item.category ? item.category : ''}
             {item.category && item.buildYear ? ' • ' : ''}
             {item.buildYear ? `${item.buildYear} р.` : ''}
@@ -50,12 +59,20 @@ export const LandmarkCard = React.memo(({ item, onPress }: LandmarkCardProps) =>
         )}
 
         {item.architectureStyle && (
-          <Text style={styles.cardTag}>
+          <Text
+            style={[
+              styles.cardTag,
+              { color: themeMode === 'dark' ? colors.accentGold : COLORS.borderBronze },
+            ]}
+          >
             Стиль: {item.architectureStyle}
           </Text>
         )}
 
-        <Text style={styles.cardDescription} numberOfLines={2}>
+        <Text
+          style={[styles.cardDescription, { color: colors.textSecondary }]}
+          numberOfLines={2}
+        >
           {item.description}
         </Text>
       </View>
