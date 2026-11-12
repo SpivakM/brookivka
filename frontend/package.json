@@ -3,11 +3,12 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "node scripts/setup-env.js && node scripts/reverse-ports.js && react-native run-android",
-    "android:clean": "node scripts/setup-env.js && node scripts/reverse-ports.js && npx react-native start --reset-cache",
-    "android:release:local": "node scripts/setup-env.js && node scripts/reverse-ports.js && react-native run-android --mode=release",
+    "setup": "node scripts/setup-env.js && node scripts/reverse-ports.js",
+    "android": "npm run setup && react-native run-android",
+    "android:clean": "npm run setup && react-native start --host 127.0.0.1 --reset-cache",
+    "android:release:local": "npm run setup && react-native run-android --mode=release",
     "android:release:prod": "react-native run-android --mode=release",
-    "start": "react-native start",
+    "start": "npm run setup && react-native start --host 127.0.0.1",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "test": "jest"
