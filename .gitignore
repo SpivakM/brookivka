@@ -59,6 +59,9 @@ application-local.properties
 ehthumbs.db
 Thumbs.db
 
+
+infra/.terraform/
+infra/*.tfstate*
 # ==========================================
 # React Native & Frontend (Додані правила)
 # ==========================================

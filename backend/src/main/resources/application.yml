@@ -14,3 +14,8 @@ spring:
     properties:
       hibernate:
         format_sql: true
+groq:
+  api:
+    key: ${GROQ_API_KEY:}
+    url: https://api.groq.com/openai/v1/chat/completions
+    model: openai/gpt-oss-120b
