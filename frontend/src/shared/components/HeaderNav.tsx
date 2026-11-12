@@ -26,13 +26,17 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
         },
       ]}
     >
-      <TouchableOpacity
-        style={styles.headerButton}
-        activeOpacity={0.7}
-        onPress={onSettingsPress}
-      >
-        <Text style={styles.headerButtonText}>⚙</Text>
-      </TouchableOpacity>
+      {onSettingsPress ? (
+        <TouchableOpacity
+          style={styles.headerButton}
+          activeOpacity={0.7}
+          onPress={onSettingsPress}
+        >
+          <Text style={styles.headerButtonText}>⚙</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={styles.placeholderButton} />
+      )}
 
       <View style={styles.titleBox}>
         <Text style={styles.titleText}>{title}</Text>
@@ -77,6 +81,10 @@ const styles = StyleSheet.create({
   headerButtonText: {
     color: '#E0D0B0',
     fontSize: 20,
+  },
+  placeholderButton: {
+    width: 42,
+    height: 42,
   },
   titleBox: {
     borderWidth: 1.5,
