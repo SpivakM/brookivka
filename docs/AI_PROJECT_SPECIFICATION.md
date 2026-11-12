@@ -14,6 +14,23 @@
 
 Надані матеріали містять концепцію просторової фільтрації, ROI cropping, metric learning, multi-view embeddings і комбінованого reranking. У цьому документі ця концепція прив’язана до фактичної структури репозиторію.
 
+## 1.1. Стан робочих гілок
+
+Поточний `dev` є інтеграційною гілкою та містить backend, frontend, Docker,
+Groq AI-guide і документацію. Для повного контексту потрібно враховувати також
+дві feature-гілки:
+
+| Гілка | Стан і важливі зміни |
+|---|---|
+| `dev` | Поточна база для документації та інтеграції. |
+| `backend` | Містить новішу cloud-інфраструктуру: S3 для media, CloudFront CDN, IAM role/instance profile, VPC S3 endpoint та EC2 `c7i-flex.large` із 25 GB gp3 і swap. Ці зміни ще не є частиною поточного `dev`. |
+| `frontend` | Містить мобільний React Native setup: `API_URL`, dynamic local IP generation, ADB `reverse` для портів 8081/8082 і production URL `https://api.brookivka.com`. Frontend-дерево вже присутнє в `dev`, але ці environment/run details треба зберегти. |
+
+Тому `dev` є source of truth для вже інтегрованої функціональності, а
+`backend` cloud resources — джерело очікуваної production-інфраструктури до
+моменту їх merge у `dev`. Не можна описувати S3, CloudFront або EC2
+`c7i-flex.large` як активні production resources лише на підставі плану гілки.
+
 ## 2. Короткий опис продукту
 
 Brookivka — мобільний туристичний застосунок для дослідження історичних пам’яток Львова. Користувач може:
@@ -138,6 +155,29 @@ GET /api/landmarks/nearby?lat={latitude}&lng={longitude}&radius={meters}
 `t3.micro` у регіоні `eu-north-1`, security group з SSH і портом `8082`, а
 `user_data` встановлює Docker, Compose і Git. Цей файл створює серверну основу,
 але не виконує автоматичний deploy репозиторію, secrets або AI-service.
+
+У гілці `backend` є розширений варіант cloud-інфраструктури, який додає:
+
+- приватний S3 bucket для media;
+- CloudFront CDN із Origin Access Control;
+- S3 Gateway VPC endpoint;
+- IAM role для EC2 без AWS keys у `.env`;
+- EC2 `c7i-flex.large`, 25 GB gp3 і 2 GB swap;
+- outputs для server IP, CDN URL і bucket name.
+
+Цей cloud-варіант потрібно вважати pending integration до merge в `dev`.
+
+Frontend environment/run configuration:
+
+- `frontend/.env.development` — локальний `API_URL`;
+- `frontend/.env.production` — `https://api.brookivka.com`;
+- `scripts/setup-env.js` автоматично генерує локальний `.env` і `.env.development`
+  із доступної IPv4-адреси;
+- `scripts/reverse-ports.js` прокидає через ADB порти Metro `8081` і backend
+  `8082`.
+
+Локальний IP у `.env.development` є machine-specific і не повинен вважатися
+універсальним значенням для іншого розробника.
 
 Початкові дані завантажуються через `DataInitializer` і містять пам’ятки центрального Львова. Це seed-дані для MVP, а не повноцінний production catalog.
 

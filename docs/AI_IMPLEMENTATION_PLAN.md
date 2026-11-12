@@ -24,6 +24,11 @@
 
 **Flyway/Liquibase у цьому плані не використовуються.** Схема змінюється через JPA/Hibernate, `ddl-auto: update`, entity-анотації та SQL для специфічних spatial-індексів.
 
+Поточна інтеграційна гілка — `dev`. Frontend source уже містить dynamic
+`API_URL` setup і ADB port reverse. Окремо в гілці `backend` є ще не інтегрований
+cloud layer із S3, CloudFront, IAM і EC2 `c7i-flex.large`; його не потрібно
+вважати доступним runtime-компонентом, доки гілку не буде злито в `dev`.
+
 ---
 
 ## 2. Принципи реалізації
@@ -924,6 +929,18 @@ FAISS        local volume
 Frontend     React Native Metro
 ```
 
+Frontend local configuration:
+
+```text
+frontend/.env.development  API_URL=http://<local-ip>:8082
+frontend/.env.production   API_URL=https://api.brookivka.com
+```
+
+Для Android scripts/setup-env.js генерує локальний IP автоматично, а
+scripts/reverse-ports.js використовує ADB reverse для портів `8081` і `8082`.
+Значення IP у committed `.env.development` machine-specific; перед запуском
+потрібно використовувати `npm run android`, який оновлює local environment.
+
 Коли Python AI-service буде створений, додати в `docker-compose.yml`:
 
 ```yaml
@@ -960,6 +977,20 @@ backend:
 і встановлює Docker, Docker Compose та Git через `user_data`. Це не є повним
 CI/CD deployment: окремо потрібно налаштувати копіювання коду, environment
 secrets, запуск Compose, HTTPS/reverse proxy та backup PostGIS.
+
+Гілка `backend` містить розширену, ще не інтегровану версію `infra/main.tf`:
+
+- приватний S3 bucket для media;
+- CloudFront із Origin Access Control;
+- IAM role/instance profile для EC2;
+- VPC Gateway Endpoint для S3;
+- EC2 `c7i-flex.large` із 25 GB gp3 і 2 GB swap;
+- outputs `server_public_ip`, `cdn_base_url`, `media_bucket_name`.
+
+Після merge цього cloud layer потрібно окремо додати deploy pipeline,
+налаштувати secrets, прив’язати `photoUrl`/media metadata до CDN URL і перевірити
+AWS policy та costs. До того часу документація та локальний запуск орієнтуються
+на інфраструктуру `dev`.
 
 ### Staging
 
