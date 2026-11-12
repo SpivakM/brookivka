@@ -1,50 +1,58 @@
 const fs = require('fs');
 const os = require('os');
 
-function getLocalIp() {
+function getDynamicIp() {
   const interfaces = os.networkInterfaces();
   
-  let fallbackIp = null;
+  let homeIp = null;
 
   for (const name of Object.keys(interfaces)) {
     const lowerName = name.toLowerCase();
     
-    // Фільтруємо віртуальні адаптери, Radmin, Hamachi та Windows Hotspot
+    // 1. Повністю відсікаємо віртуальні та службові адаптери Docker / WSL / Radmin
     if (
       lowerName.includes('radmin') || 
       lowerName.includes('hamachi') || 
       lowerName.includes('vbox') || 
       lowerName.includes('vethernet') ||
       lowerName.includes('virtual') ||
-      lowerName.includes('hotspot')
+      lowerName.includes('hotspot') ||
+      lowerName.includes('docker') ||
+      lowerName.includes('wsl')
     ) {
       continue;
     }
 
     for (const iface of interfaces[name]) {
+      // Шукаємо тільки активні IPv4 адреси
       if (iface.family === 'IPv4' && !iface.internal) {
-        // Ігноруємо підмережу Windows Hotspot (192.168.137.x)
+        
+        // Ігноруємо підмережу Hotspot Windows
         if (iface.address.startsWith('192.168.137.')) {
           continue;
         }
 
-        // Перевага надається стандартним Wi-Fi / Ethernet адресам (192.168.x.x або 10.x.x.x)
-        if (iface.address.startsWith('192.168.') || iface.address.startsWith('10.')) {
-          return iface.address;
+        // Пріоритет №1: Стандартна домашня мережа (192.168.x.x)
+        if (iface.address.startsWith('192.168.')) {
+          homeIp = iface.address;
+          break;
         }
-
-        fallbackIp = iface.address;
       }
     }
+    if (homeIp) break;
   }
 
-  return fallbackIp || '127.0.0.1';
+  // Якщо ми вдома (є 192.168.x.x) — віддаємо її.
+  // Якщо ми в універі (10.x.x.x) або без Wi-Fi — віддаємо 127.0.0.1, 
+  // щоб емулятор працював через ADB reverse без мережевих завад.
+  return homeIp || '127.0.0.1';
 }
 
-const localIp = getLocalIp();
-const envContent = `API_URL=http://${localIp}:8082\n`;
+const targetIp = getDynamicIp();
+const envContent = `API_URL=http://${targetIp}:8082\n`;
 
+// Записуємо у всі можливі env-файли проєкту
 fs.writeFileSync('.env', envContent);
 fs.writeFileSync('.env.development', envContent);
 
-console.log(`[setup-env] Correct IP generated: http://${localIp}:8082`);
+console.log(`\n🚀 [setup-env] Dynamic API_URL detected: http://${targetIp}:8082`);

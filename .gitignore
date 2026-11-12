@@ -78,6 +78,7 @@ Thumbs.db
 **/android/build/
 **/android/local.properties
 **/android/.idea/
+**/android/app/src/main/jniLibs/
 *.keystore
 !**/android/app/debug.keystore
 

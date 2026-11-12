@@ -26,3 +26,20 @@ allprojects {
         mavenCentral()
     }
 }
+
+def customBuildRoot = new File(System.getProperty("java.io.tmpdir"), "BrooBuild")
+
+subprojects { subproject ->
+    if (subproject.name == "app") {
+        subproject.buildDir = new File(customBuildRoot, "${rootProject.name}/${subproject.name}")
+    }
+    subproject.plugins.withId("com.android.library") {
+        subproject.android {
+            externalNativeBuild {
+                cmake {
+                    buildStagingDirectory = new File(customBuildRoot, "cxx/${subproject.name}")
+                }
+            }
+        }
+    }
+}

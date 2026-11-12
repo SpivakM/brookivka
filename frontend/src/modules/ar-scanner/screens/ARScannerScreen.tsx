@@ -11,7 +11,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect } from 'react-native-svg';
-import { Camera, CameraType } from 'react-native-camera-kit';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useFrameProcessor,
+} from 'react-native-vision-camera';
+import { Worklets } from 'react-native-worklets-core';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { COLORS } from '../../../shared/constants/theme';
 import { API_BASE_URL } from '../../../shared/constants/apiConfig';
@@ -32,14 +38,11 @@ interface LandmarkDbItem {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// На скільки пікселів затемнення виходить за межі тексту
-const GLOW_SPREAD_X = 120; // по боках
-const GLOW_SPREAD_Y = 70; // зверху і знизу
-const GLOW_INNER_INSET = 18; // наскільки градієнт заходить під сам текст (менше "суцільного" центру)
-const GLOW_OPACITY = 0.5; // максимальна темність під текстом
+const GLOW_SPREAD_X = 120;
+const GLOW_SPREAD_Y = 70;
+const GLOW_INNER_INSET = 18;
+const GLOW_OPACITY = 0.5;
 
-// Гауссоподібний спад: довгий плавний "хвіст", без різкого переходу.
-// x = 1 — біля тексту (найтемніше), x = 0 — зовнішній край (0 прозорості).
 const GAUSS_K = 3.2;
 const smooth = (x: number) => {
   const d = 1 - x;
@@ -48,7 +51,6 @@ const smooth = (x: number) => {
 };
 const STEPS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
 
-// Скорочує опис, щоб "Дізнатися більше..." стояло в кінці тексту як продовження речення
 const truncate = (text: string, max = 90) => {
   if (!text) return '';
   if (text.length <= max) return text;
@@ -58,10 +60,8 @@ const truncate = (text: string, max = 90) => {
   return base.replace(/[\s.,;:–-]+$/, '') + '…';
 };
 
-// Відступ тексту від іконки (радіус 19 * scale 1.08 ≈ 21 + запас)
 const TEXT_BOTTOM_OFFSET = 34;
 
-// Стопи для градієнта: від темного (inner) до прозорого (outer)
 const renderStops = (fromInner: boolean) =>
   STEPS.map((t) => (
     <Stop
@@ -72,10 +72,6 @@ const renderStops = (fromInner: boolean) =>
     />
   ));
 
-/**
- * Прямокутне м'яке затемнення: суцільний центр + 4 краї (лінійні градієнти)
- * + 4 кути (радіальні градієнти). Усе плавно сходить до нуля.
- */
 const GlowRect: React.FC<{ width: number; height: number }> = ({ width, height }) => {
   const W = Math.round(width);
   const H = Math.round(height);
@@ -88,29 +84,24 @@ const GlowRect: React.FC<{ width: number; height: number }> = ({ width, height }
   return (
     <Svg width={W} height={H}>
       <Defs>
-        {/* Краї: від прозорого (зовні) до темного (всередині) */}
         <LinearGradient id="gTop" x1="0" y1="0" x2="0" y2="1">{renderStops(false)}</LinearGradient>
         <LinearGradient id="gBottom" x1="0" y1="1" x2="0" y2="0">{renderStops(false)}</LinearGradient>
         <LinearGradient id="gLeft" x1="0" y1="0" x2="1" y2="0">{renderStops(false)}</LinearGradient>
         <LinearGradient id="gRight" x1="1" y1="0" x2="0" y2="0">{renderStops(false)}</LinearGradient>
 
-        {/* Кути: центр градієнта в кутку, що дотикається до внутрішнього прямокутника */}
         <RadialGradient id="gTL" cx="100%" cy="100%" rx="100%" ry="100%" fx="100%" fy="100%">{renderStops(true)}</RadialGradient>
         <RadialGradient id="gTR" cx="0%" cy="100%" rx="100%" ry="100%" fx="0%" fy="100%">{renderStops(true)}</RadialGradient>
         <RadialGradient id="gBL" cx="100%" cy="0%" rx="100%" ry="100%" fx="100%" fy="0%">{renderStops(true)}</RadialGradient>
         <RadialGradient id="gBR" cx="0%" cy="0%" rx="100%" ry="100%" fx="0%" fy="0%">{renderStops(true)}</RadialGradient>
       </Defs>
 
-      {/* Центр */}
       <Rect x={sx} y={sy} width={innerW} height={innerH} fill="#000" fillOpacity={GLOW_OPACITY} />
 
-      {/* Краї */}
       <Rect x={sx} y={0} width={innerW} height={sy} fill="url(#gTop)" />
       <Rect x={sx} y={H - sy} width={innerW} height={sy} fill="url(#gBottom)" />
       <Rect x={0} y={sy} width={sx} height={innerH} fill="url(#gLeft)" />
       <Rect x={W - sx} y={sy} width={sx} height={innerH} fill="url(#gRight)" />
 
-      {/* Кути */}
       <Rect x={0} y={0} width={sx} height={sy} fill="url(#gTL)" />
       <Rect x={W - sx} y={0} width={sx} height={sy} fill="url(#gTR)" />
       <Rect x={0} y={H - sy} width={sx} height={sy} fill="url(#gBL)" />
@@ -124,12 +115,24 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
   const [loading, setLoading] = useState<boolean>(true);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [glowSize, setGlowSize] = useState<{ w: number; h: number } | null>(null);
+  const [liveFrameStatus, setLiveFrameStatus] = useState<string>('AI Vision: ініціалізація...');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const frameCounterRef = useRef<number>(0);
 
-  // Координати розташування іконки
+  // Vision Camera хуки
+  const { hasPermission, requestPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
+
   const BUTTON_X = SCREEN_WIDTH * 0.5;
   const BUTTON_Y = SCREEN_HEIGHT * 0.44;
+
+  // Запит дозволу на камеру при відкритті екрана
+  useEffect(() => {
+    if (!hasPermission) {
+      requestPermission();
+    }
+  }, [hasPermission, requestPermission]);
 
   useEffect(() => {
     const fetchLandmarkFromDb = async () => {
@@ -151,6 +154,21 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
 
     fetchLandmarkFromDb();
   }, []);
+
+  // JS-колбек, куди прилітають дані про живі кадри з нативного потоку камери
+  const handleLiveFrame = Worklets.createRunOnJS((width: number, height: number) => {
+    frameCounterRef.current += 1;
+    // Оновлюємо статус кожен 30-й кадр (~1 раз на секунду), щоб не навантажувати рендер
+    if (frameCounterRef.current % 30 === 0) {
+      setLiveFrameStatus(`AI Live: ${width}×${height} | кадр #${frameCounterRef.current}`);
+    }
+  });
+
+  // Живий обробник відеопотоку (Frame Processor)
+  const frameProcessor = useFrameProcessor((frame) => {
+    'worklet';
+    handleLiveFrame(frame.width, frame.height);
+  }, [handleLiveFrame]);
 
   const toggleOverlay = () => {
     if (isOpen) {
@@ -193,19 +211,33 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         {...(Platform.OS === 'android' ? { backgroundColor: COLORS.primaryGreen } : {})}
       />
 
-      {/* Потік камери */}
+      {/* Живий потік камери з Vision Camera */}
       <View style={styles.videoContainer}>
-        <Camera
-          style={StyleSheet.absoluteFill}
-          cameraType={CameraType.Back}
-          flashMode="auto"
-          focusMode="off"
-        />
+        {hasPermission && device ? (
+          <Camera
+            style={StyleSheet.absoluteFill}
+            device={device}
+            isActive={true}
+            frameProcessor={frameProcessor}
+            pixelFormat="yuv"
+          />
+        ) : (
+          <View style={styles.cameraFallback}>
+            <Text style={styles.cameraFallbackText}>
+              {!hasPermission ? 'Очікування дозволу на камеру...' : 'Камера недоступна'}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.topHeaderBar} />
 
-      {/* Прозора зона для закриття при кліку повз текст */}
+      {/* Індикатор живого потоку кадрів для перевірки */}
+      <View style={styles.liveBadge} pointerEvents="none">
+        <View style={styles.liveDot} />
+        <Text style={styles.liveBadgeText}>{liveFrameStatus}</Text>
+      </View>
+
       {isOpen && (
         <TouchableOpacity
           style={styles.dismissArea}
@@ -214,7 +246,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         />
       )}
 
-      {/* Текст з м'яким радіальним затемненням без контурів */}
       {isOpen && landmark && (
         <Animated.View
           style={[
@@ -233,8 +264,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
             },
           ]}
         >
-          {/* Затемнення: радіальний градієнт, що плавно сходить нанівець.
-              Виходить за межі тексту (відʼємні відступи) і не перехоплює дотики. */}
           <View
             style={styles.glowLayer}
             pointerEvents="none"
@@ -248,7 +277,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
             {glowSize ? <GlowRect width={glowSize.w} height={glowSize.h} /> : null}
           </View>
 
-          {/* Текстовий блок */}
           <View style={styles.textContent}>
             <View style={styles.cardHeaderRow}>
               <Text style={styles.cardTitle} numberOfLines={1}>
@@ -275,7 +303,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         </Animated.View>
       )}
 
-      {/* Маленька кругла кнопка 38x38 з церквою */}
       <View style={[styles.markerContainer, { left: BUTTON_X - 19, top: BUTTON_Y - 19 }]}>
         <TouchableOpacity
           onPress={toggleOverlay}
@@ -300,7 +327,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         </TouchableOpacity>
       </View>
 
-      {/* Футер закріплений знизу */}
       <View style={styles.footerWrapper}>
         <FooterNav
           navigation={navigation}
@@ -327,11 +353,47 @@ const styles = StyleSheet.create({
     bottom: 0,
     zIndex: 1,
   },
+  cameraFallback: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#111',
+  },
+  cameraFallbackText: {
+    color: '#EFE3C3',
+    fontSize: 14,
+  },
   topHeaderBar: {
     height: Platform.OS === 'ios' ? 44 : 24,
     backgroundColor: COLORS.primaryGreen,
     width: '100%',
     zIndex: 10,
+  },
+  liveBadge: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 34,
+    left: 14,
+    zIndex: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(20, 35, 27, 0.72)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 227, 195, 0.35)',
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#4ADE80',
+    marginRight: 6,
+  },
+  liveBadgeText: {
+    color: '#EFE3C3',
+    fontSize: 11,
+    fontWeight: '600',
   },
   dismissArea: {
     position: 'absolute',
@@ -365,8 +427,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E3328',
     transform: [{ scale: 1.08 }],
   },
-
-  /* Векторна міні-іконка церкви */
   churchIconWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -409,9 +469,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 2,
     borderTopRightRadius: 2,
   },
-
-  /* Контейнер тексту над кнопкою. Без фону і без overflow: hidden,
-     щоб затемнення могло виходити за його межі. */
   textContainer: {
     position: 'absolute',
     alignSelf: 'center',
@@ -419,8 +476,6 @@ const styles = StyleSheet.create({
     maxWidth: 225,
     zIndex: 30,
   },
-
-  /* Шар затемнення: більший за текст на GLOW_SPREAD_X / GLOW_SPREAD_Y */
   glowLayer: {
     position: 'absolute',
     top: -GLOW_SPREAD_Y,
@@ -428,8 +483,6 @@ const styles = StyleSheet.create({
     left: -GLOW_SPREAD_X,
     right: -GLOW_SPREAD_X,
   },
-
-  /* Вміст тексту */
   textContent: {
     width: '100%',
     paddingHorizontal: 8,
@@ -475,7 +528,6 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
-  /* Посилання всередині тексту опису, без рамки і фону */
   aiLinkText: {
     color: '#FFD39B',
     fontWeight: '700',
