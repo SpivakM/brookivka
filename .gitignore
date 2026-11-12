@@ -1,4 +1,6 @@
-
+# ==========================================
+# Java & Backend (Існуючі правила)
+# ==========================================
 target/
 *.class
 *.jar
@@ -9,14 +11,12 @@ target/
 *.tar.gz
 *.rar
 
-
 .idea/
 *.iml
 *.iws
 *.ipr
 out/
 .idea_modules/
-
 
 .apt_generated
 .classpath
@@ -26,15 +26,13 @@ out/
 .springBeans
 .sts4-cache
 
-
 .vscode/
-
+!.vscode/settings.json
 
 /nbproject/private/
 /build/
 /nbbuild/
 /dist/
-
 
 *.log
 *.sqlite
@@ -43,15 +41,15 @@ out/
 *.bak
 *.swp
 
-
 .env
+.env.development
+.env.production
 .env.local
 .env.*.local
 *.pem
 *.key
 application-local.yml
 application-local.properties
-
 
 .DS_Store
 .DS_Store?
@@ -64,3 +62,37 @@ Thumbs.db
 
 infra/.terraform/
 infra/*.tfstate*
+# ==========================================
+# React Native & Frontend (Додані правила)
+# ==========================================
+**/node_modules/
+**/.pnp
+.pnp.js
+**/coverage/
+.metro-health-check*
+.expo/
+.npm
+.yarn/
+**/.bundle/
+
+# Android
+**/android/app/build/
+**/android/.gradle/
+**/android/build/
+**/android/local.properties
+**/android/.idea/
+*.keystore
+!**/android/app/debug.keystore
+
+# iOS
+**/ios/Pods/
+**/ios/build/
+**/ios/DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcworkspace
+
+# C++ build artifacts
+**/.cxx/
