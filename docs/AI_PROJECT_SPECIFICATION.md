@@ -54,9 +54,39 @@ Brookivka — мобільний туристичний застосунок д�
 - `react-native-svg` для візуальних overlay-ефектів;
 - `react-native-config` для `API_URL`.
 
-Поточний AR-екран уже отримує пам’ятки через `/api/landmarks/nearby`, але координати користувача та цільовий об’єкт поки задані статично. Вибір об’єкта виконується через `id === 3` або перший результат. Це демонстраційна логіка, яку має замінити реальний AI pipeline.
+Поточний AR-екран уже отримує пам’ятки через `/api/landmarks/nearby`, але координати
+користувача та цільовий об’єкт поки задані статично. Вибір об’єкта виконується через
+`id === 3` або перший результат. Це демонстраційна логіка, яку має замінити реальний
+AI pipeline.
 
-`AIGuideScreen` наразі містить локальні тестові повідомлення та штучну відповідь через `setTimeout`. Підключення LLM/backend endpoint ще не реалізоване.
+Backend уже має базову інтеграцію AI-гіда через Groq:
+
+```http
+POST /api/ai-guide/chat
+```
+
+Request:
+
+```json
+{
+  "landmarkName": "Оперний Театр",
+  "context": "Опис пам’ятки з бази",
+  "userMessage": "Розкажи про Дзеркальну залу"
+}
+```
+
+Response:
+
+```json
+{
+  "reply": "..."
+}
+```
+
+Сервіс `GroqGuideService` використовує `GROQ_API_KEY`, endpoint Groq Chat
+Completions і модель із `groq.api.model`. Frontend `AIGuideScreen` ще використовує
+локальні тестові повідомлення та `setTimeout`, тому наступним кроком є підключення
+цього endpoint, а не створення нового session API з нуля.
 
 ### 3.2. Backend
 
@@ -95,8 +125,19 @@ GET /api/landmarks/nearby?lat={latitude}&lng={longitude}&radius={meters}
 
 `docker-compose.yml` запускає:
 
-- PostGIS 16 / 3.4 на порту `5432`;
+- PostGIS 16 / 3.4 у внутрішній Docker-мережі;
 - Spring Boot backend на порту `8082`.
+
+Порт PostGIS зараз не проброшений на host. Backend підключається до бази через
+`jdbc:postgresql://db:5432/ar_tourist_db`. Для локального доступу з host потрібно
+окремо додати `5432:5432`, але для стандартного запуску backend це не потрібно.
+Пароль бази задається через `DB_PASSWORD`, а значення за замовчуванням — лише для
+локального MVP.
+
+Інфраструктура AWS описана в `infra/main.tf`: OpenTofu/Terraform створює EC2
+`t3.micro` у регіоні `eu-north-1`, security group з SSH і портом `8082`, а
+`user_data` встановлює Docker, Compose і Git. Цей файл створює серверну основу,
+але не виконує автоматичний deploy репозиторію, secrets або AI-service.
 
 Початкові дані завантажуються через `DataInitializer` і містять пам’ятки центрального Львова. Це seed-дані для MVP, а не повноцінний production catalog.
 
@@ -350,6 +391,27 @@ GET  /api/landmarks/{id}
 
 ## 7. AI-гід і контекст пам’ятки
 
+Поточний MVP уже має простий Groq-based endpoint:
+
+```http
+POST /api/ai-guide/chat
+```
+
+Він приймає `landmarkName`, `context` і `userMessage`, формує system prompt
+українською мовою та повертає `{ "reply": "..." }`. На backend конфігурація
+знаходиться в `application.yml`:
+
+```yaml
+groq:
+ api:
+   key: ${GROQ_API_KEY:}
+   url: https://api.groq.com/openai/v1/chat/completions
+   model: openai/gpt-oss-120b
+```
+
+`GROQ_API_KEY` потрібно передавати через environment або secret manager. Ключ не
+можна комітити у repository, Dockerfile, mobile bundle чи frontend `.env`.
+
 AI-гід не повинен відповідати лише на основі назви об’єкта. Backend має сформувати context packet:
 
 ```json
@@ -379,7 +441,15 @@ LLM повинен:
 - повертати зрозумілу відповідь при низькій впевненості розпізнавання;
 - підтримувати контекст сесії, але мати обмеження довжини історії.
 
-Поточний `AIGuideScreen` потребує заміни локального `setTimeout` на API call, loading state, retry, timeout і повідомлення про помилку. Повідомлення користувача не слід втрачати при тимчасовому мережевому збої.
+Поточний `AIGuideScreen` потребує заміни локального `setTimeout` на виклик
+`POST /api/ai-guide/chat`, loading state, retry, timeout і повідомлення про
+помилку. Новий session API не є обов’язковим для першої інтеграції; його можна
+додати пізніше, якщо знадобиться серверне зберігання історії діалогу.
+
+Поточний `GroqGuideService` має fallback-відповідь у разі помилки upstream.
+Для production потрібно замінити success-shaped fallback на явний HTTP error,
+додати timeout, валідацію request fields, обмеження довжини повідомлення та
+структуроване логування без API key.
 
 ## 8. Розширення моделі даних
 
@@ -515,11 +585,12 @@ PostGIS GiST-індекси створюються idempotent SQL-операці
 
 ### Фаза 4 — AI-гід
 
-1. Додати backend session/message endpoints.
-2. Підключити LLM через provider abstraction.
-3. Формувати context packet із verified landmark data.
-4. Додати streaming або typing state за потреби.
-5. Додати moderation, rate limiting і observability.
+1. Підключити `AIGuideScreen` до існуючого `/api/ai-guide/chat`.
+2. Додати loading, timeout, retry та помилки у frontend.
+3. Перенести `context` на verified landmark data з backend.
+4. Додати provider abstraction навколо Groq.
+5. Додати валідацію, rate limiting, moderation і observability.
+6. Лише за потреби додати session/message endpoints.
 
 ### Фаза 5 — якість і production
 

@@ -154,6 +154,7 @@ MATCH_THRESHOLD=0.75
 MATCH_MARGIN_THRESHOLD=0.08
 
 BACKEND_BASE_URL=http://backend:8082
+GROQ_API_KEY=
 ```
 
 Секрети LLM і vector database не зберігати в `.env.example` зі значеннями. У Git комітиться лише шаблон.
@@ -838,16 +839,44 @@ recognitionConfidence
 
 ## 15. Фаза 11 — реалізувати AI-гід
 
-### 15.1. Backend API
+### 15.1. Поточний backend API
 
-Створити:
+Backend уже має endpoint:
+
+```http
+POST /api/ai-guide/chat
+```
+
+Request:
+
+```json
+{
+  "landmarkName": "Оперний Театр",
+  "context": "Опис пам’ятки з бази",
+  "userMessage": "Розкажи про Дзеркальну залу"
+}
+```
+
+Response:
+
+```json
+{
+  "reply": "..."
+}
+```
+
+Поточна реалізація знаходиться у `AiGuideController` та `GroqGuideService` і
+використовує Groq Chat Completions. Не створювати дубльований session API для
+першої інтеграції.
+
+Майбутні endpoints:
 
 ```http
 POST /api/ai-guide/sessions
 POST /api/ai-guide/sessions/{sessionId}/messages
 ```
 
-Session має бути прив’язана до `landmarkId` і, за можливості, до recognition request.
+Додавати їх лише тоді, коли потрібне серверне зберігання історії діалогу.
 
 ### 15.2. Context packet
 
@@ -869,14 +898,17 @@ LLM має відповідати лише в межах verified context або
 
 ### 15.3. Frontend
 
-У `AIGuideScreen.tsx` замінити `setTimeout` на API client:
+У `AIGuideScreen.tsx` замінити `setTimeout` на API client для
+`POST /api/ai-guide/chat`:
 
 - показувати sending state;
 - блокувати повторну відправку або підтримувати queue;
 - показувати timeout/error;
 - повторювати невдале повідомлення;
 - зберігати історію поточної сесії;
-- не втрачати user message при помилці response.
+- не втрачати user message при помилці response;
+- передавати `landmarkName`, verified `context` і `userMessage`;
+- не зберігати `GROQ_API_KEY` у frontend.
 
 ---
 
@@ -885,14 +917,14 @@ LLM має відповідати лише в межах verified context або
 ### Local
 
 ```text
-PostGIS      localhost:5432
+PostGIS      Docker network: db:5432
 Spring Boot  localhost:8082
-AI-service   localhost:8090
+AI-service   localhost:8090 (коли буде доданий)
 FAISS        local volume
 Frontend     React Native Metro
 ```
 
-Додати в `docker-compose.yml`:
+Коли Python AI-service буде створений, додати в `docker-compose.yml`:
 
 ```yaml
 ai-service:
@@ -909,6 +941,25 @@ ai-service:
 ```
 
 Для CPU-only локального MVP не додавати GPU runtime без необхідності.
+
+Поточний `docker-compose.yml` вже запускає PostGIS і backend, передає
+`DB_PASSWORD` через environment substitution і не відкриває PostGIS на host.
+Для AI-гід також потрібно передавати `GROQ_API_KEY` тільки в `backend`:
+
+```yaml
+backend:
+  environment:
+    GROQ_API_KEY: ${GROQ_API_KEY}
+```
+
+У production значення має надходити з secret manager, а не з committed `.env`.
+
+### AWS/OpenTofu
+
+`infra/main.tf` створює AWS EC2 `t3.micro` у `eu-north-1`, відкриває SSH/8082
+і встановлює Docker, Docker Compose та Git через `user_data`. Це не є повним
+CI/CD deployment: окремо потрібно налаштувати копіювання коду, environment
+secrets, запуск Compose, HTTPS/reverse proxy та backup PostGIS.
 
 ### Staging
 
