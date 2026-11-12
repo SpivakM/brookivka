@@ -60,3 +60,7 @@ application-local.properties
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+
+infra/.terraform/
+infra/*.tfstate*
