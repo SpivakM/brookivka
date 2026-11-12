@@ -10,10 +10,11 @@
     "android:release:prod": "react-native run-android --mode=release",
     "start": "npm run setup && react-native start --host 127.0.0.1",
     "ios": "react-native run-ios",
-    "lint": "eslint .", 
+    "lint": "eslint .",
     "test": "jest"
   },
   "dependencies": {
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native/new-app-screen": "0.88.1",
     "@react-navigation/native": "^7.5.1",
     "@react-navigation/native-stack": "^7.21.0",

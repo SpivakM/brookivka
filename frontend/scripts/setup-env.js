@@ -3,17 +3,17 @@ const os = require('os');
 
 function getDynamicIp() {
   const interfaces = os.networkInterfaces();
-
+  
   let homeIp = null;
 
   for (const name of Object.keys(interfaces)) {
     const lowerName = name.toLowerCase();
-
+    
     // 1. Повністю відсікаємо віртуальні та службові адаптери Docker / WSL / Radmin
     if (
-      lowerName.includes('radmin') ||
-      lowerName.includes('hamachi') ||
-      lowerName.includes('vbox') ||
+      lowerName.includes('radmin') || 
+      lowerName.includes('hamachi') || 
+      lowerName.includes('vbox') || 
       lowerName.includes('vethernet') ||
       lowerName.includes('virtual') ||
       lowerName.includes('hotspot') ||
@@ -26,7 +26,7 @@ function getDynamicIp() {
     for (const iface of interfaces[name]) {
       // Шукаємо тільки активні IPv4 адреси
       if (iface.family === 'IPv4' && !iface.internal) {
-
+        
         // Ігноруємо підмережу Hotspot Windows
         if (iface.address.startsWith('192.168.137.')) {
           continue;

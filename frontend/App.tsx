@@ -5,25 +5,28 @@ import { NavigationContainer } from '@react-navigation/native';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { AnimatedSplashScreen } from './src/shared/components/AnimatedSplashScreen';
 import { ThemeProvider } from './src/shared/context/ThemeContext';
+import { AuthProvider } from './src/shared/context/AuthContext';
 
 export default function App() {
   const [isSplashVisible, setIsSplashVisible] = useState(true);
 
   return (
     <SafeAreaProvider>
-      <ThemeProvider>
-        <View style={styles.root}>
-          <NavigationContainer>
-            <AppNavigator />
-          </NavigationContainer>
+      <AuthProvider>
+        <ThemeProvider>
+          <View style={styles.root}>
+            <NavigationContainer>
+              <AppNavigator />
+            </NavigationContainer>
 
-          {isSplashVisible && (
-            <AnimatedSplashScreen
-              onAnimationFinish={() => setIsSplashVisible(false)}
-            />
-          )}
-        </View>
-      </ThemeProvider>
+            {isSplashVisible && (
+              <AnimatedSplashScreen
+                onAnimationFinish={() => setIsSplashVisible(false)}
+              />
+            )}
+          </View>
+        </ThemeProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
