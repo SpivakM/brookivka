@@ -159,6 +159,9 @@ MATCH_MARGIN_THRESHOLD=0.08
 
 BACKEND_BASE_URL=http://backend:8082
 GROQ_API_KEY=
+AWS_S3_REGION=eu-north-1
+AWS_S3_BUCKET=
+AWS_CDN_BASE_URL=
 ```
 
 Секрети LLM і vector database не зберігати в `.env.example` зі значеннями. У Git комітиться лише шаблон.
@@ -169,6 +172,8 @@ GROQ_API_KEY=
 - секрети не потрапляють у Git;
 - model version повертається в API-відповіді;
 - threshold і ваги можна змінювати без редагування коду.
+- media configuration is available to the backend without exposing AWS credentials
+  to the mobile application.
 
 ---
 

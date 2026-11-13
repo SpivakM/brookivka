@@ -152,6 +152,17 @@ GET /api/landmarks/nearby?lat={latitude}&lng={longitude}&radius={meters}
 Пароль бази задається через `DB_PASSWORD`, а значення за замовчуванням — лише для
 локального MVP.
 
+Backend також має media API для landmark photos:
+
+```http
+POST /api/landmarks/{id}/photo
+DELETE /api/landmarks/{id}/photo
+```
+
+`LandmarkMediaService` validates JPEG/PNG/WebP uploads, writes them to the private
+S3 bucket through the AWS SDK, deletes a replaced managed object, and stores the
+CloudFront URL in `Landmark.photoUrl`. Upload size is limited by Spring to 10 MB.
+
 Інфраструктура AWS описана в `infra/main.tf`: OpenTofu/Terraform створює в
 регіоні `eu-north-1`:
 
