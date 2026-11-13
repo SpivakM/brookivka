@@ -30,7 +30,7 @@
     "react-native-svg": "^15.16.1",
     "react-native-video": "^6.19.3",
     "react-native-vision-camera": "4.7.3",
-    "react-native-worklets-core": "1.6.2"
+    "react-native-worklets-core": "^1.6.3"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
