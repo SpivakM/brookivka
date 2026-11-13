@@ -10,6 +10,7 @@ import {
     Platform,
     ScrollView,
     Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -17,34 +18,146 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/types';
 import { COLORS } from '../../../shared/constants/theme';
 import { useTheme } from '../../../shared/context/ThemeContext';
+import { useAuth } from '../../../shared/context/AuthContext';
 
 export const RegisterScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { colors, themeMode } = useTheme();
+    const { user, register, logout, isLoading } = useAuth();
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleRegister = () => {
+    const handleRegister = async () => {
         if (!name.trim() || !email.trim() || !password.trim()) {
             Alert.alert('Заповніть поля', 'Будь ласка, введіть імʼя, пошту та пароль.');
             return;
         }
 
-        Alert.alert(
-            'Акаунт створено!',
-            `Вітаємо в Brookivka, ${name}!`,
-            [
-                {
-                    text: 'На головну',
-                    onPress: () => navigation.navigate('Entry'),
-                },
-            ]
-        );
+        if (password.length < 6) {
+            Alert.alert('Слабкий пароль', 'Пароль має містити щонайменше 6 символів.');
+            return;
+        }
+
+        try {
+            await register(name, email, password);
+            Alert.alert(
+                'Акаунт створено!',
+                `Вітаємо в Brookivka, ${name}!`,
+                [
+                    {
+                        text: 'На головну',
+                        onPress: () => navigation.navigate('Entry'),
+                    },
+                ]
+            );
+        } catch (err: any) {
+            Alert.alert('Помилка реєстрації', err.message || 'Не вдалося створити акаунт.');
+        }
     };
+
+    const handleLogout = () => {
+        Alert.alert('Вихід із акаунта', 'Ви дійсно хочете вийти з профілю?', [
+            { text: 'Скасувати', style: 'cancel' },
+            {
+                text: 'Вийти',
+                style: 'destructive',
+                onPress: async () => {
+                    await logout();
+                },
+            },
+        ]);
+    };
+
+    // Якщо користувач уже авторизований — показуємо екран його профілю
+    if (user) {
+        const initials = user.name
+            .split(' ')
+            .map((part) => part[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2);
+
+        return (
+            <View style={[styles.container, { backgroundColor: colors.background }]}>
+                <View
+                    style={[
+                        styles.header,
+                        {
+                            backgroundColor: colors.headerBg,
+                            paddingTop: insets.top + 8,
+                            paddingBottom: 20,
+                        },
+                    ]}
+                >
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        activeOpacity={0.7}
+                        onPress={() => navigation.navigate('Entry')}
+                    >
+                        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+                            <Path
+                                d="M15 19L8 12L15 5"
+                                stroke="#E0D0B0"
+                                strokeWidth={2.8}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </Svg>
+                    </TouchableOpacity>
+                    <View style={styles.placeholderButton} />
+                </View>
+
+                <ScrollView
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        { paddingBottom: insets.bottom + 24 },
+                    ]}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.welcomeBlock}>
+                        <View style={styles.avatarCircle}>
+                            <Text style={styles.avatarText}>{initials || '👤'}</Text>
+                        </View>
+                        <Text style={[styles.brandTitle, { color: colors.accentGold, letterSpacing: 1 }]}>
+                            {user.name}
+                        </Text>
+                        <Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
+                            {user.email}
+                        </Text>
+                    </View>
+
+                    <View
+                        style={[
+                            styles.card,
+                            {
+                                backgroundColor: colors.card,
+                                borderColor: colors.borderSubtle,
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.profileStatusTitle, { color: colors.accentGold }]}>
+                            Статус профілю мандрівника
+                        </Text>
+                        <Text style={[styles.profileStatusDesc, { color: colors.textPrimary }]}>
+                            Ваш акаунт активний. Усі збережені маршрути та AR-відкриття синхронізуються з вашим профілем.
+                        </Text>
+
+                        <TouchableOpacity
+                            style={styles.logoutButton}
+                            activeOpacity={0.85}
+                            onPress={handleLogout}
+                        >
+                            <Text style={styles.logoutButtonText}>Вийти з акаунта</Text>
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </View>
+        );
+    }
 
     return (
         <KeyboardAvoidingView
@@ -127,6 +240,7 @@ export const RegisterScreen: React.FC = () => {
                             value={name}
                             onChangeText={setName}
                             autoCapitalize="words"
+                            editable={!isLoading}
                         />
                     </View>
 
@@ -149,6 +263,7 @@ export const RegisterScreen: React.FC = () => {
                             onChangeText={setEmail}
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            editable={!isLoading}
                         />
                     </View>
 
@@ -173,6 +288,7 @@ export const RegisterScreen: React.FC = () => {
                                 onChangeText={setPassword}
                                 secureTextEntry={!showPassword}
                                 autoCapitalize="none"
+                                editable={!isLoading}
                             />
                             <TouchableOpacity
                                 onPress={() => setShowPassword(!showPassword)}
@@ -186,11 +302,16 @@ export const RegisterScreen: React.FC = () => {
                     </View>
 
                     <TouchableOpacity
-                        style={styles.submitButton}
+                        style={[styles.submitButton, isLoading && { opacity: 0.7 }]}
                         activeOpacity={0.85}
                         onPress={handleRegister}
+                        disabled={isLoading}
                     >
-                        <Text style={styles.submitButtonText}>Зареєструватися</Text>
+                        {isLoading ? (
+                            <ActivityIndicator color={COLORS.white} />
+                        ) : (
+                            <Text style={styles.submitButtonText}>Зареєструватися</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
 
@@ -296,6 +417,22 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 22,
     },
+    avatarCircle: {
+        width: 76,
+        height: 76,
+        borderRadius: 38,
+        backgroundColor: COLORS.primaryGreen,
+        borderWidth: 2,
+        borderColor: COLORS.borderBronze,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 14,
+    },
+    avatarText: {
+        color: '#E0D0B0',
+        fontSize: 26,
+        fontWeight: '800',
+    },
     brandTitle: {
         fontSize: 22,
         fontWeight: '800',
@@ -312,6 +449,29 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         borderWidth: 1,
         padding: 18,
+    },
+    profileStatusTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginBottom: 8,
+    },
+    profileStatusDesc: {
+        fontSize: 13,
+        lineHeight: 19,
+        marginBottom: 20,
+    },
+    logoutButton: {
+        backgroundColor: '#8B322C',
+        borderRadius: 10,
+        paddingVertical: 13,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.borderBronze,
+    },
+    logoutButtonText: {
+        color: COLORS.white,
+        fontSize: 15,
+        fontWeight: '700',
     },
     inputGroup: {
         marginBottom: 16,

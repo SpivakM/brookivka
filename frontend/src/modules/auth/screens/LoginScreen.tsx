@@ -10,6 +10,7 @@ import {
     Platform,
     ScrollView,
     Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -17,33 +18,30 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/types';
 import { COLORS } from '../../../shared/constants/theme';
 import { useTheme } from '../../../shared/context/ThemeContext';
+import { useAuth } from '../../../shared/context/AuthContext';
 
 export const LoginScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { colors, themeMode } = useTheme();
+    const { login, isLoading } = useAuth();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
         if (!email.trim() || !password.trim()) {
             Alert.alert('Заповніть поля', 'Будь ласка, введіть пошту та пароль.');
             return;
         }
 
-        // Тут далі підключиш запит до вашого бекенду / Firebase / Supabase
-        Alert.alert(
-            'Вітаємо в Brookivka!',
-            `Ви успішно увійшли як ${email}`,
-            [
-                {
-                    text: 'Чудово',
-                    onPress: () => navigation.navigate('Entry'),
-                },
-            ]
-        );
+        try {
+            await login(email, password);
+            navigation.navigate('Entry');
+        } catch (err: any) {
+            Alert.alert('Помилка входу', err.message || 'Невірна пошта або пароль.');
+        }
     };
 
     return (
@@ -128,6 +126,7 @@ export const LoginScreen: React.FC = () => {
                             onChangeText={setEmail}
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            editable={!isLoading}
                         />
                     </View>
 
@@ -152,6 +151,7 @@ export const LoginScreen: React.FC = () => {
                                 onChangeText={setPassword}
                                 secureTextEntry={!showPassword}
                                 autoCapitalize="none"
+                                editable={!isLoading}
                             />
                             <TouchableOpacity
                                 onPress={() => setShowPassword(!showPassword)}
@@ -180,11 +180,16 @@ export const LoginScreen: React.FC = () => {
 
                     {/* Головна кнопка входу */}
                     <TouchableOpacity
-                        style={styles.submitButton}
+                        style={[styles.submitButton, isLoading && { opacity: 0.7 }]}
                         activeOpacity={0.85}
                         onPress={handleLogin}
+                        disabled={isLoading}
                     >
-                        <Text style={styles.submitButtonText}>Увійти в акаунт</Text>
+                        {isLoading ? (
+                            <ActivityIndicator color={COLORS.white} />
+                        ) : (
+                            <Text style={styles.submitButtonText}>Увійти в акаунт</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
 
