@@ -34,6 +34,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: ar_ai_service
+    restart: always
+    ports:
+      - "8090:8090"
+    env_file:
+      - ./ai-service/.env
+    volumes:
+      - ./ai-service/data:/app/data
 
 volumes:
   postgres_data:
