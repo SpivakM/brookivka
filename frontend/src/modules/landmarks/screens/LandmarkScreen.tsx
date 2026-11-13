@@ -14,12 +14,14 @@ import { FooterNav } from '../../../shared/components/FooterNav';
 import { LandmarkCard, Landmark } from '../components/LandmarkCard';
 import { COLORS } from '../../../shared/constants/theme';
 import { API_BASE_URL } from '../../../shared/constants/apiConfig';
+import { useTheme } from '../../../shared/context/ThemeContext';
 
 interface LandmarksScreenProps {
   navigation?: any;
 }
 
 export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) => {
+  const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [landmarks, setLandmarks] = useState<Landmark[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -31,18 +33,14 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
       setError(null);
       const url = `${API_BASE_URL}/api/landmarks/nearby?lat=49.8418&lng=24.0316&radius=1000`;
       console.log('Fetching landmarks from:', url);
-
       const response = await fetch(url);
-
       if (!response.ok) {
         throw new Error(`HTTP status: ${response.status}`);
       }
-
       const data: Landmark[] = await response.json();
       setLandmarks(data);
     } catch (err: any) {
       console.error('Failed to fetch landmarks:', err);
-      // Показуємо повний URL і текст помилки безпосередньо на екрані пристрою
       setError(`[${API_BASE_URL}] ${err.message || 'Network error'}`);
     } finally {
       setLoading(false);
@@ -53,7 +51,6 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
     fetchLandmarks();
   }, []);
 
-  // Пошукова фільтрація
   const filteredLandmarks = landmarks.filter((item) => {
     const query = searchQuery.toLowerCase();
     return (
@@ -65,29 +62,29 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
   });
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar
         barStyle="light-content"
         {...(Platform.OS === 'android' ? { backgroundColor: COLORS.primaryGreen } : {})}
       />
-
       <HeaderWithFilter
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         placeholder="Search Landmarks..."
       />
-
       <View style={styles.body}>
         {loading ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color={COLORS.buttonBrown} />
-            <Text style={styles.loadingText}>Завантаження пам’яток...</Text>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              Завантаження...
+            </Text>
           </View>
         ) : error ? (
           <View style={styles.centerContainer}>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={fetchLandmarks}>
-              <Text style={styles.retryText}>Спробувати знову</Text>
+              <Text style={styles.retryText}>Спробувати ще</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -99,13 +96,14 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
             showsVerticalScrollIndicator={true}
             ListEmptyComponent={
               <View style={styles.centerContainer}>
-                <Text style={styles.emptyText}>Пам’яток не знайдено</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  Нічого не знайдено
+                </Text>
               </View>
             }
           />
         )}
       </View>
-
       <FooterNav
         navigation={navigation}
         rightTabLabel="MAP"

@@ -1,97 +1,81 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Brookivka frontend
 
-# Getting Started
+The frontend is a React Native 0.88.1 application written in TypeScript. It targets Android and
+iOS and provides the landmark catalog, map/routes, AR scanner, AI guide, authentication, settings,
+and theme UI.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Architecture
 
-## Step 1: Start Metro
+```text
+src/
+├── modules/
+│   ├── ai-guide/       # AI guide screen
+│   ├── ar-scanner/     # Vision Camera scanner
+│   ├── auth/           # Login and registration
+│   ├── home/           # Entry screen
+│   ├── landmarks/      # Landmark catalog
+│   ├── map-routes/     # Map and route cards
+│   └── settings/       # User settings
+├── navigation/         # Stack and navigation types
+└── shared/
+    ├── components/     # Reusable navigation/UI
+    ├── constants/      # Theme and API constants
+    └── context/        # Auth and theme state
+```
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+The current AR implementation uses Vision Camera and Worklets. Its frame processor reports
+telemetry only; detector, ROI, embeddings, and recognition API integration are planned.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Setup
 
-```sh
-# Using npm
+From this directory:
+
+```bash
+npm ci
+npm run setup
 npm start
-
-# OR using Yarn
-yarn start
 ```
 
-## Step 2: Build and run your app
+Run Android in another terminal:
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
+```bash
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### iOS
+For iOS, install CocoaPods dependencies and run:
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
+```bash
 bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+See the repository [development setup](../docs/DEVELOPMENT_SETUP.md) for device, backend, and
+troubleshooting instructions.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## Runtime configuration
 
-## Step 3: Modify your app
+`npm run setup` runs:
 
-Now that you have successfully run the app, let's make changes!
+- `scripts/setup-env.js` to select a reachable local or cloud API URL;
+- `scripts/reverse-ports.js` to configure Android ADB reverse for ports `8081` and `8082`.
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+Do not place Groq keys, AWS credentials, or other backend secrets in the mobile application.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## Validation
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+```bash
+npm run lint
+npx tsc --noEmit
+npm test -- --runInBand
+```
 
-## Congratulations! :tada:
+Known test limitations should be recorded in the pull request and `docs/STATUS.md` when they
+represent a repository-wide issue.
 
-You've successfully run and modified your React Native App. :partying_face:
+## Frontend implementation rules
 
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- Use the shared API client once it is introduced; do not add screen-specific request behavior.
+- Represent loading, empty, offline, permission, timeout, and error states explicitly.
+- Keep authentication state in `AuthContext` and visual preferences in `ThemeContext`.
+- Do not display an unverified landmark name from a failed or uncertain recognition result.
+- Update navigation types when adding screens or route parameters.

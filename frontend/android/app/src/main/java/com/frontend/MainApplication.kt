@@ -8,6 +8,11 @@ import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 
 class MainApplication : Application(), ReactApplication {
+  companion object {
+    init {
+      System.loadLibrary("c++_shared")
+    }
+  }
 
   override val reactHost: ReactHost by lazy {
     getDefaultReactHost(

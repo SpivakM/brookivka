@@ -8,3 +8,9 @@
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
 # Add any project specific keep options here:
+
+-keep class com.reactnativecommunity.asyncstorage.** { *; }
+-keep class com.mrousavy.camera.** { *; }
+-keep class com.worklets.** { *; }
+-keep class com.lugg.ReactNativeConfig.** { *; }
+-keepclassmembers class * { @com.facebook.react.bridge.ReactMethod <methods>; }

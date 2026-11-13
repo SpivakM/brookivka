@@ -2,6 +2,7 @@ package org.example.dto;
 
 import lombok.Builder;
 import lombok.Data;
+import org.example.entity.LandmarkType;
 
 @Data
 @Builder
@@ -16,4 +17,9 @@ public class LandmarkResponseDto {
     private String category;
     private double latitude;
     private double longitude;
+
+    private LandmarkType objectType;
+    private Double distanceMeters;
+    private Double bearingDegrees;
+    private Double visibilityRadiusMeters;
 }

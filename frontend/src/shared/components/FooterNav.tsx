@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 
 interface FooterNavProps {
   navigation?: any;
@@ -19,7 +20,9 @@ export const FooterNav: React.FC<FooterNavProps> = ({
   rightTabTarget = 'Map',
 }) => {
   const navigation = useNavigation<any>();
-  const ICON_COLOR = COLORS.iconBronze;
+  const { colors, themeMode } = useTheme();
+  const ICON_COLOR = themeMode === 'dark' ? colors.accentGold : COLORS.footerBackground;
+  const FOOTER_BG = themeMode === 'dark' ? colors.card : COLORS.primaryGreen;
 
   // Иконка списка с точками (для MENU)
   const renderListIcon = () => (
@@ -50,13 +53,16 @@ export const FooterNav: React.FC<FooterNavProps> = ({
       {/* Основное здание */}
       <View style={[styles.churchBody, { backgroundColor: ICON_COLOR }]}>
         {/* Дверь / Арка */}
-        <View style={[styles.churchDoor, { backgroundColor: COLORS.footerBackground }]} />
+        <View style={[styles.churchDoor, { backgroundColor: FOOTER_BG }]} />
       </View>
     </View>
   );
 
   return (
-    <SafeAreaView edges={['bottom']} style={styles.footerSafeArea}>
+    <SafeAreaView
+      edges={['bottom']}
+      style={[styles.footerSafeArea, { backgroundColor: FOOTER_BG }]}
+    >
       <View style={styles.bottomBar}>
         {/* ЛЕВАЯ КНОПКА (CAM или SITES) */}
         <TouchableOpacity
@@ -66,7 +72,7 @@ export const FooterNav: React.FC<FooterNavProps> = ({
         >
           {leftTabLabel === 'CAM' ? (
             <View style={[styles.camIconOuter, { backgroundColor: ICON_COLOR }]}>
-              <View style={styles.camIconInner} />
+              <View style={[styles.camIconInner, { borderColor: FOOTER_BG }]} />
             </View>
           ) : (
             renderChurchIcon()
@@ -123,7 +129,7 @@ export const FooterNav: React.FC<FooterNavProps> = ({
 
 const styles = StyleSheet.create({
   footerSafeArea: {
-    backgroundColor: COLORS.footerBackground,
+    backgroundColor: COLORS.primaryGreen,
     borderTopWidth: 1.5,
     borderTopColor: COLORS.borderBronze,
     shadowColor: '#000000',
@@ -165,7 +171,7 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     borderWidth: 2.5,
-    borderColor: COLORS.footerBackground,
+    borderColor: COLORS.primaryGreen,
   },
   // MENU
   menuIconContainer: {
