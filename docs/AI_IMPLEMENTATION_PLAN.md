@@ -24,10 +24,9 @@
 
 **Flyway/Liquibase у цьому плані не використовуються.** Схема змінюється через JPA/Hibernate, `ddl-auto: update`, entity-анотації та SQL для специфічних spatial-індексів.
 
-Поточна інтеграційна гілка — `dev`. Frontend source уже містить dynamic
-`API_URL` setup і ADB port reverse. Окремо в гілці `backend` є ще не інтегрований
-cloud layer із S3, CloudFront, IAM і EC2 `c7i-flex.large`; його не потрібно
-вважати доступним runtime-компонентом, доки гілку не буде злито в `dev`.
+Поточний `dev` є єдиним source of truth. Він уже містить dynamic `API_URL`
+setup, ADB port reverse, Vision Camera, authentication/settings UI, Groq
+AI-guide та S3/CloudFront/IAM/EC2 cloud layer.
 
 ---
 
@@ -160,6 +159,9 @@ MATCH_MARGIN_THRESHOLD=0.08
 
 BACKEND_BASE_URL=http://backend:8082
 GROQ_API_KEY=
+AWS_S3_REGION=eu-north-1
+AWS_S3_BUCKET=
+AWS_CDN_BASE_URL=
 ```
 
 Секрети LLM і vector database не зберігати в `.env.example` зі значеннями. У Git комітиться лише шаблон.
@@ -170,6 +172,8 @@ GROQ_API_KEY=
 - секрети не потрапляють у Git;
 - model version повертається в API-відповіді;
 - threshold і ваги можна змінювати без редагування коду.
+- media configuration is available to the backend without exposing AWS credentials
+  to the mobile application.
 
 ---
 
@@ -932,14 +936,13 @@ Frontend     React Native Metro
 Frontend local configuration:
 
 ```text
-frontend/.env.development  API_URL=http://<local-ip>:8082
-frontend/.env.production   API_URL=https://api.brookivka.com
+frontend/.env              API_URL=http://<local-ip>:8082
+frontend/.env.production   API_URL=https://api.brookivka.com (optional runtime file)
 ```
 
-Для Android scripts/setup-env.js генерує локальний IP автоматично, а
-scripts/reverse-ports.js використовує ADB reverse для портів `8081` і `8082`.
-Значення IP у committed `.env.development` machine-specific; перед запуском
-потрібно використовувати `npm run android`, який оновлює local environment.
+`npm run setup` запускає `scripts/setup-env.js` і `scripts/reverse-ports.js`.
+Setup перевіряє локальний backend, автоматично вибирає local/cloud API URL і
+записує його в `.env`. ADB reverse прокидає порти `8081` і `8082`.
 
 Коли Python AI-service буде створений, додати в `docker-compose.yml`:
 
@@ -973,12 +976,7 @@ backend:
 
 ### AWS/OpenTofu
 
-`infra/main.tf` створює AWS EC2 `t3.micro` у `eu-north-1`, відкриває SSH/8082
-і встановлює Docker, Docker Compose та Git через `user_data`. Це не є повним
-CI/CD deployment: окремо потрібно налаштувати копіювання коду, environment
-secrets, запуск Compose, HTTPS/reverse proxy та backup PostGIS.
-
-Гілка `backend` містить розширену, ще не інтегровану версію `infra/main.tf`:
+`infra/main.tf` створює AWS ресурси в `eu-north-1`:
 
 - приватний S3 bucket для media;
 - CloudFront із Origin Access Control;
@@ -987,10 +985,9 @@ secrets, запуск Compose, HTTPS/reverse proxy та backup PostGIS.
 - EC2 `c7i-flex.large` із 25 GB gp3 і 2 GB swap;
 - outputs `server_public_ip`, `cdn_base_url`, `media_bucket_name`.
 
-Після merge цього cloud layer потрібно окремо додати deploy pipeline,
+Це не є повним CI/CD deployment: окремо потрібно налаштувати deploy pipeline,
 налаштувати secrets, прив’язати `photoUrl`/media metadata до CDN URL і перевірити
-AWS policy та costs. До того часу документація та локальний запуск орієнтуються
-на інфраструктуру `dev`.
+AWS policy та costs.
 
 ### Staging
 
@@ -1127,20 +1124,23 @@ processingMs
 4. Seed polygon data.
 5. Backend tests для spatial search.
 6. Reference image dataset і manifest.
-7. Python AI-service skeleton.
-8. Detector і ROI cropping.
-9. DINOv2 embeddings.
-10. FAISS index builder.
-11. Reranking і thresholds.
-12. Python recognition endpoint.
-13. Spring Boot recognition client/controller.
-14. Device GPS/camera integration.
-15. AR state machine та overlay.
-16. AI-guide backend.
-17. Frontend AI-guide API integration.
-18. Docker local environment.
-19. Evaluation dataset і quality thresholds.
-20. Observability та production hardening.
+7. Спільний frontend API client із `API_URL` і auth token handling.
+8. Python AI-service skeleton.
+9. Detector і ROI cropping.
+10. DINOv2 embeddings.
+11. FAISS index builder.
+12. Reranking і thresholds.
+13. Python recognition endpoint.
+14. Spring Boot recognition client/controller.
+15. Device GPS/camera integration через Vision Camera.
+16. AR state machine та overlay.
+17. Frontend AI-guide integration із `/api/ai-guide/chat`.
+18. За потреби завершити auth screens через `AuthContext` і додати backend
+    `/api/auth/*`; поточний backend цих endpoints не містить, тому auth не
+    блокуватиме перший recognition MVP.
+19. Docker local environment із AI-service.
+20. Evaluation dataset і quality thresholds.
+21. Observability та production hardening.
 
 Не переходити до AR integration, поки recognition endpoint не має стабільного response contract і тестів.
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../../shared/constants/theme';
 import { useTheme } from '../../../shared/context/ThemeContext';
@@ -7,6 +7,7 @@ export type Landmark = {
   id: number;
   name: string;
   description: string;
+  fullDescription?: string | null;
   architectureStyle?: string | null;
   buildYear?: number | null;
   photoUrl?: string | null;
@@ -20,17 +21,11 @@ interface LandmarkCardProps {
   onPress?: () => void;
 }
 
-const HARDCODED_IMAGES: Record<number, string> = {
-  1: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTIbwwFqXCGRAgiQ9KjqYinRDFLwGsXBojPZ_i3rmeO_w&s=10',
-  2: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTKdftePnxCJdyyAGJUEz2LPhIFZDVnU_wGc8nd8lXssg&s=10',
-  3: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2d3GErGVI_LB_59QsdUyhs6JFotdzCgT_p7xVKJrtaw&s=10',
-};
-
-const DEFAULT_IMAGE = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT_yGuOXzdFdT0u1emI3lPiX0zK26AyKB6uvGPdY2Fgqg&s=10';
-
 export const LandmarkCard = React.memo(({ item, onPress }: LandmarkCardProps) => {
   const { colors, themeMode } = useTheme();
-  const imageUrl = item.photoUrl || HARDCODED_IMAGES[item.id] || DEFAULT_IMAGE;
+  const [imageError, setImageError] = useState(false);
+
+  const hasValidPhoto = Boolean(item.photoUrl && item.photoUrl.trim() && !imageError);
 
   return (
     <TouchableOpacity
@@ -41,7 +36,18 @@ export const LandmarkCard = React.memo(({ item, onPress }: LandmarkCardProps) =>
       activeOpacity={0.88}
       onPress={onPress}
     >
-      <Image source={{ uri: imageUrl }} style={styles.cardImage} />
+      {hasValidPhoto ? (
+        <Image
+          source={{ uri: item.photoUrl!.trim() }}
+          style={styles.cardImage}
+          onError={() => setImageError(true)}
+        />
+      ) : (
+        <View style={[styles.cardImage, styles.placeholderContainer]}>
+          <Text style={styles.placeholderText}>Немає фото</Text>
+        </View>
+      )}
+
       <View style={styles.cardContent}>
         <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>{item.name}</Text>
 
@@ -100,6 +106,19 @@ const styles = StyleSheet.create({
     height: 95,
     borderRadius: 14,
     backgroundColor: '#E5DEC9',
+  },
+  placeholderContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.borderBronze,
+    padding: 6,
+  },
+  placeholderText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    fontWeight: '600',
   },
   cardContent: {
     flex: 1,
