@@ -51,7 +51,7 @@ endpoint, or real GPS/compass-driven AR matching.
 | Language | TypeScript |
 | UI/runtime | React 19.3 |
 | Navigation | React Navigation 7 |
-| Camera | `react-native-vision-camera` 4.7.3 |
+| Camera | `react-native-vision-camera` 4.7.3; legacy `react-native-camera-kit` remains in dependencies |
 | Frame processing | `react-native-worklets-core` 1.6.2 |
 | Maps | `react-native-maps` |
 | Media/UI | `react-native-video`, `react-native-svg` |
