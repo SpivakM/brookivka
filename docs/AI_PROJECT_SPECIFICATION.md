@@ -14,22 +14,11 @@
 
 Надані матеріали містять концепцію просторової фільтрації, ROI cropping, metric learning, multi-view embeddings і комбінованого reranking. У цьому документі ця концепція прив’язана до фактичної структури репозиторію.
 
-## 1.1. Стан робочих гілок
+## 1.1. Актуальний source of truth
 
-Поточний `dev` є інтеграційною гілкою та містить backend, frontend, Docker,
-Groq AI-guide і документацію. Для повного контексту потрібно враховувати також
-дві feature-гілки:
-
-| Гілка | Стан і важливі зміни |
-|---|---|
-| `dev` | Поточна база для документації та інтеграції. |
-| `backend` | Містить новішу cloud-інфраструктуру: S3 для media, CloudFront CDN, IAM role/instance profile, VPC S3 endpoint та EC2 `c7i-flex.large` із 25 GB gp3 і swap. Ці зміни ще не є частиною поточного `dev`. |
-| `frontend` | Містить мобільний React Native setup: `API_URL`, dynamic local IP generation, ADB `reverse` для портів 8081/8082 і production URL `https://api.brookivka.com`. Frontend-дерево вже присутнє в `dev`, але ці environment/run details треба зберегти. |
-
-Тому `dev` є source of truth для вже інтегрованої функціональності, а
-`backend` cloud resources — джерело очікуваної production-інфраструктури до
-моменту їх merge у `dev`. Не можна описувати S3, CloudFront або EC2
-`c7i-flex.large` як активні production resources лише на підставі плану гілки.
+Поточний `dev` є єдиною актуальною інтеграційною гілкою для реалізації AI.
+Вона містить backend, React Native frontend, Docker, Groq AI-guide,
+authentication/settings UI, Vision Camera і AWS cloud infrastructure.
 
 ## 2. Короткий опис продукту
 
@@ -65,16 +54,19 @@ Brookivka — мобільний туристичний застосунок д�
 
 Використовуються:
 
-- `react-native-camera-kit` для камери;
+- `react-native-vision-camera` для камери та frame processor;
+- `react-native-worklets-core` для передачі даних із native frame processor;
 - `react-native-maps` для карти;
 - `react-native-safe-area-context`;
 - `react-native-svg` для візуальних overlay-ефектів;
-- `react-native-config` для `API_URL`.
+- `react-native-config` для `API_URL`;
+- `@react-native-async-storage/async-storage` для локальної auth-сесії.
 
-Поточний AR-екран уже отримує пам’ятки через `/api/landmarks/nearby`, але координати
-користувача та цільовий об’єкт поки задані статично. Вибір об’єкта виконується через
-`id === 3` або перший результат. Це демонстраційна логіка, яку має замінити реальний
-AI pipeline.
+Поточний AR-екран використовує Vision Camera і frame processor. Frame processor
+поки лише передає у JavaScript ширину/висоту кадру та оновлює telemetry-статус;
+детекції, ROI cropping, embeddings і recognition API ще не підключені. Nearby
+запит і вибір об’єкта все ще використовують статичні координати та fallback
+`id === 3` або перший результат. Це потрібно замінити реальним AI pipeline.
 
 Backend уже має базову інтеграцію AI-гіда через Groq:
 
@@ -101,9 +93,18 @@ Response:
 ```
 
 Сервіс `GroqGuideService` використовує `GROQ_API_KEY`, endpoint Groq Chat
-Completions і модель із `groq.api.model`. Frontend `AIGuideScreen` ще використовує
-локальні тестові повідомлення та `setTimeout`, тому наступним кроком є підключення
-цього endpoint, а не створення нового session API з нуля.
+Completions і модель із `groq.api.model`. Frontend `AIGuideScreen` ще використовує локальні тестові повідомлення та `setTimeout`,
+тому наступним кроком є підключення цього endpoint.
+
+Frontend також має `AuthContext` із login/register/logout, збереженням token і
+profile в AsyncStorage, а також `ThemeContext` із dark/light themes. AuthContext
+вже містить виклики `/api/auth/login` і `/api/auth/register`, але login/register
+екрани ще містять демонстраційний UI та потребують підключення до context.
+У поточному backend немає `AuthController` або реалізації `/api/auth/*`, тому
+auth integration не можна вважати завершеною і вона не повинна блокувати перший
+recognition MVP.
+Ці можливості не є частиною image recognition, але recognition та AI-guide
+requests повинні використовувати спільний API client і враховувати auth state.
 
 ### 3.2. Backend
 
@@ -151,12 +152,8 @@ GET /api/landmarks/nearby?lat={latitude}&lng={longitude}&radius={meters}
 Пароль бази задається через `DB_PASSWORD`, а значення за замовчуванням — лише для
 локального MVP.
 
-Інфраструктура AWS описана в `infra/main.tf`: OpenTofu/Terraform створює EC2
-`t3.micro` у регіоні `eu-north-1`, security group з SSH і портом `8082`, а
-`user_data` встановлює Docker, Compose і Git. Цей файл створює серверну основу,
-але не виконує автоматичний deploy репозиторію, secrets або AI-service.
-
-У гілці `backend` є розширений варіант cloud-інфраструктури, який додає:
+Інфраструктура AWS описана в `infra/main.tf`: OpenTofu/Terraform створює в
+регіоні `eu-north-1`:
 
 - приватний S3 bucket для media;
 - CloudFront CDN із Origin Access Control;
@@ -165,19 +162,22 @@ GET /api/landmarks/nearby?lat={latitude}&lng={longitude}&radius={meters}
 - EC2 `c7i-flex.large`, 25 GB gp3 і 2 GB swap;
 - outputs для server IP, CDN URL і bucket name.
 
-Цей cloud-варіант потрібно вважати pending integration до merge в `dev`.
+Це infrastructure-as-code, а не повністю автоматичний application deploy:
+потрібні окремі кроки для доставки коду, secrets, запуску Compose, HTTPS і
+backup PostGIS.
 
 Frontend environment/run configuration:
 
-- `frontend/.env.development` — локальний `API_URL`;
-- `frontend/.env.production` — `https://api.brookivka.com`;
-- `scripts/setup-env.js` автоматично генерує локальний `.env` і `.env.development`
-  із доступної IPv4-адреси;
+- `scripts/setup-env.js` перевіряє локальний backend на `127.0.0.1:8082`;
+- якщо backend доступний, записує локальний IP у `.env`;
+- якщо backend недоступний, читає `.env.production`, якщо файл існує;
+- якщо production config відсутній, використовує fallback `10.0.2.2` або
+  знайдений локальний IPv4;
 - `scripts/reverse-ports.js` прокидає через ADB порти Metro `8081` і backend
   `8082`.
 
-Локальний IP у `.env.development` є machine-specific і не повинен вважатися
-універсальним значенням для іншого розробника.
+`.env` і `.env.production` є runtime configuration, а не джерелом AI logic.
+API URL не повинен містити Groq key або інші backend secrets.
 
 Початкові дані завантажуються через `DataInitializer` і містять пам’ятки центрального Львова. Це seed-дані для MVP, а не повноцінний production catalog.
 
@@ -665,7 +665,11 @@ MVP вважається готовим, якщо:
 - vector database/index;
 - реального recognition endpoint;
 - device GPS/compass integration для AR;
-- production LLM integration;
-- migrations, authentication, rate limiting і model monitoring.
+- frontend integration із наявним Groq endpoint;
+- recognition endpoint, rate limiting і model monitoring; auth UI/API wiring
+  також ще потребує завершення.
 
-Тому AI-розробнику не слід трактувати поточний `Landmark.location Point` або статичний AR `fetch` як завершену архітектуру. Це стартовий контракт, який потрібно розширити без втрати сумісності зі списком пам’яток і картою.
+Тому AI-розробнику не слід трактувати поточний `Landmark.location Point`,
+telemetry-only Vision Camera frame processor або статичний AR `fetch` як
+завершену recognition-архітектуру. Це стартовий контракт, який потрібно
+розширити без втрати сумісності зі списком пам’яток, картою, auth і settings.

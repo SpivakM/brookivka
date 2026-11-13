@@ -11,10 +11,12 @@ import {
   Platform,
   StatusBar,
   ImageBackground,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../shared/constants/theme';
 import { FooterNav } from '../../../shared/components/FooterNav';
+import { API_BASE_URL } from '../../../shared/constants/apiConfig';
 
 // Локальне фонове зображення бруківки
 const COBBLESTONE_BG = require('../../../assets/images/cobblestone_bg.jpg');
@@ -29,7 +31,7 @@ interface AIGuideScreenProps {
   navigation?: any;
   route?: {
     params?: {
-      landmarkId?: string;
+      landmarkId?: number | string;
       landmarkName?: string;
       initialContext?: string;
       imageUri?: string;
@@ -37,7 +39,6 @@ interface AIGuideScreenProps {
   };
 }
 
-// Ось тут має експортуватися саме AIGuideScreen:
 export const AIGuideScreen: React.FC<AIGuideScreenProps> = ({ navigation, route }) => {
   const landmarkName = route?.params?.landmarkName || 'ЛЬВІВСЬКА ОПЕРА';
 
@@ -51,42 +52,71 @@ export const AIGuideScreen: React.FC<AIGuideScreenProps> = ({ navigation, route 
 
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
-      sender: 'user',
-      text: 'Розкажи про Дзеркальну залу театру',
-    },
-    {
-      id: '2',
+      id: 'welcome',
       sender: 'ai',
-      text: 'Вітаю! Дзеркальна зала (фоє) — один із найкрасивіших інтер\'єрів театру. Вона оздоблена ліпниною з позолотою, настінними картинами-алегоріями чотирьох пір року та величезними дзеркалами, які візуально розширюють простір.',
+      text: `Вітаю біля локації «${landmarkName}»! Я твій персональний екскурсовод Brookivka. Питай усе, що цікавить — від історичних фактів до міських легенд.`,
     },
   ]);
 
   const [inputText, setInputText] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 
-  const handleSendMessage = () => {
-    if (!inputText.trim()) return;
+  const handleSendMessage = async () => {
+    const prompt = inputText.trim();
+    if (!prompt || isLoading) return;
 
     const userMsg: Message = {
       id: Date.now().toString(),
       sender: 'user',
-      text: inputText.trim(),
+      text: prompt,
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    const prompt = inputText.trim();
     setInputText('');
+    setIsLoading(true);
 
-    setTimeout(() => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/ai-guide/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          landmarkName,
+          context: initialDescription,
+          userMessage: prompt,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
       const aiReply: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: `Відповідь гіда про "${prompt}": Львівська опера стоїть прямо над річкою Полтвою, яку наприкінці XIX століття заховали в підземний колектор безпосередньо перед будівництвом театру.`,
+        text: data.reply || 'Цікаве питання, але зараз не вдалося сформувати відповідь.',
       };
       setMessages((prev) => [...prev, aiReply]);
-      flatListRef.current?.scrollToEnd({ animated: true });
-    }, 700);
+    } catch (error) {
+      console.error('AI Guide fetch error:', error);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          sender: 'ai',
+          text: 'Не вдалося зв’язатися з AI-гідом. Перевір, чи запущений бекенд та чи налаштований ключ.',
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
   };
 
   return (
@@ -139,6 +169,14 @@ export const AIGuideScreen: React.FC<AIGuideScreenProps> = ({ navigation, route 
                 </View>
               </View>
             }
+            ListFooterComponent={
+              isLoading ? (
+                <View style={[styles.messageBubble, styles.aiBubble, styles.loadingBubble]}>
+                  <ActivityIndicator size="small" color={COLORS.primaryGreen} />
+                  <Text style={styles.aiMessageText}>Гід готує відповідь...</Text>
+                </View>
+              ) : undefined
+            }
             renderItem={({ item }) => (
               <View
                 style={[
@@ -167,10 +205,15 @@ export const AIGuideScreen: React.FC<AIGuideScreenProps> = ({ navigation, route 
               onChangeText={setInputText}
               onSubmitEditing={handleSendMessage}
               returnKeyType="send"
+              editable={!isLoading}
             />
             <TouchableOpacity
-              style={styles.sendButton}
+              style={[
+                styles.sendButton,
+                (!inputText.trim() || isLoading) && styles.sendButtonDisabled,
+              ]}
               onPress={handleSendMessage}
+              disabled={!inputText.trim() || isLoading}
               activeOpacity={0.8}
             >
               <Text style={styles.sendIcon}>➤</Text>
@@ -277,6 +320,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1.5,
   },
+  loadingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   userBubble: {
     alignSelf: 'flex-end',
     backgroundColor: COLORS.buttonBrown,
@@ -329,6 +377,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 2,
+  },
+  sendButtonDisabled: {
+    opacity: 0.5,
   },
   sendIcon: {
     color: COLORS.white,
