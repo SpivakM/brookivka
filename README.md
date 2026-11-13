@@ -27,6 +27,7 @@ docs/      Project and AI documentation
 - authentication/session and theme contexts in the mobile client;
 - Docker Compose local backend environment;
 - AWS S3, CloudFront, IAM, VPC endpoint, and EC2 infrastructure definitions.
+- landmark photo upload/delete through S3 and CloudFront.
 
 The complete landmark recognition pipeline is planned but not yet implemented. The current AR
 screen still uses demonstration landmark selection; detector, ROI cropping, embeddings, vector
@@ -50,6 +51,9 @@ Optional environment variables:
 ```env
 DB_PASSWORD=your-local-database-password
 GROQ_API_KEY=your-groq-api-key
+AWS_S3_REGION=eu-north-1
+AWS_S3_BUCKET=your-private-bucket
+AWS_CDN_BASE_URL=https://your-cloudfront-domain
 ```
 
 ### Frontend
@@ -101,6 +105,18 @@ Content-Type: application/json
 ```
 
 The Groq API key is used only by the backend and must never be included in the mobile app.
+
+Landmark media:
+
+```http
+POST /api/landmarks/{id}/photo
+Content-Type: multipart/form-data
+
+DELETE /api/landmarks/{id}/photo
+```
+
+The backend accepts JPEG, PNG, and WebP files up to 10 MB, stores them in private S3, and saves
+the resulting CloudFront URL in the landmark record.
 
 ## Validation commands
 

@@ -35,6 +35,7 @@ The repository is an integrated MVP. The following functionality already exists:
 - light/dark theme context;
 - Docker Compose for PostGIS and backend;
 - AWS infrastructure-as-code for EC2, S3, CloudFront, IAM, and an S3 VPC endpoint.
+- backend landmark media upload/delete integration using AWS SDK and CloudFront URLs.
 
 The complete visual recognition pipeline is not implemented yet. In particular, the repository does
 not yet contain the production detector, ROI cropping, embedding model, vector index, recognition
@@ -70,6 +71,7 @@ endpoint, or real GPS/compass-driven AR matching.
 | Spatial support | Hibernate Spatial + JTS |
 | Database | PostgreSQL with PostGIS 16 / 3.4 |
 | External AI | Groq OpenAI-compatible Chat Completions API |
+| Media SDK | AWS SDK for Java S3 |
 | Build | Maven |
 
 ### Infrastructure
@@ -200,6 +202,22 @@ The current frontend AI guide still contains demo messages and a local timeout r
 frontend task is to call `/api/ai-guide/chat`, preserve the conversation state, and handle loading,
 timeouts, retries, and errors.
 
+### Landmark media
+
+The backend supports landmark photo management:
+
+```http
+POST /api/landmarks/{id}/photo
+Content-Type: multipart/form-data
+
+DELETE /api/landmarks/{id}/photo
+```
+
+Only JPEG, PNG, and WebP uploads are accepted. Uploads are limited to 10 MB per file/request.
+`LandmarkMediaService` stores objects under `landmarks/{landmarkId}/...` in the private S3 bucket,
+removes the previous managed object when replacing a photo, and saves the CloudFront URL in
+`Landmark.photoUrl`.
+
 ### Authentication
 
 `AuthContext` provides:
@@ -310,7 +328,13 @@ SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/ar_tourist_db
 SPRING_DATASOURCE_USERNAME=postgres
 SPRING_DATASOURCE_PASSWORD=<database-password>
 GROQ_API_KEY=<groq-key>
+AWS_S3_REGION=eu-north-1
+AWS_S3_BUCKET=<private-s3-bucket>
+AWS_CDN_BASE_URL=https://<cloudfront-domain>
 ```
+
+The AWS SDK uses the EC2 IAM instance profile in cloud deployments. Do not put long-lived AWS
+access keys in application or frontend environment files.
 
 ### Frontend
 
