@@ -20,6 +20,13 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.frontend"
+    sourceSets {
+        main {
+            def autolinkingDir = new File(rootProject.projectDir, "../../../../../BrooBuild/${rootProject.name}/app/generated/autolinking/src/main/java").canonicalFile
+            java.srcDir(autolinkingDir)
+            kotlin.srcDir(autolinkingDir)
+        }
+    }
     defaultConfig {
         applicationId "com.frontend"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -28,6 +35,12 @@ android {
         versionName "1.0"
         def mapsKey = project.env.get("GOOGLE_MAPS_API_KEY") ?: ""
         resValue "string", "GOOGLE_MAPS_API_KEY", mapsKey
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DPROJECT_BUILD_DIR=" + new File(rootProject.projectDir, "../../../../../BrooBuild/${rootProject.name}/app").canonicalPath.replace("\\", "/")
+            }
+        }
     }
     signingConfigs {
         debug {
@@ -54,6 +67,12 @@ android {
         pickFirst 'lib/x86_64/libc++_shared.so'
         pickFirst 'lib/armeabi-v7a/libc++_shared.so'
         pickFirst 'lib/arm64-v8a/libc++_shared.so'
+    }
+
+    externalNativeBuild {
+        cmake {
+            buildStagingDirectory = new File(rootProject.projectDir, "../../../../../BrooBuild/cxx/app").canonicalFile
+        }
     }
 }
 
