@@ -21,6 +21,7 @@ import { Worklets } from 'react-native-worklets-core';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { COLORS } from '../../../shared/constants/theme';
 import { API_BASE_URL } from '../../../shared/constants/apiConfig';
+import { useAlert } from '../../../shared/context/AlertContext';
 
 interface ARScannerScreenProps {
   navigation?: any;
@@ -111,6 +112,7 @@ const GlowRect: React.FC<{ width: number; height: number }> = ({ width, height }
 };
 
 export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) => {
+  const { showAlert } = useAlert();
   const [landmark, setLandmark] = useState<LandmarkDbItem | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isOpen, setIsOpen] = useState<boolean>(false);
@@ -144,16 +146,27 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
           const list: LandmarkDbItem[] = await res.json();
           const target = list.find((item) => item.id === 3) || list[0];
           setLandmark(target || null);
+        } else {
+          showAlert(
+            'error',
+            'Помилка AR-сканера',
+            `Не вдалося отримати дані памʼяток (код ${res.status}).`
+          );
         }
       } catch (err) {
         console.error('ARScanner fetch landmark error:', err);
+        showAlert(
+          'error',
+          'Помилка AR-сканера',
+          'Не вдалося завантажити дані про памʼятки поруч. Перевірте зʼєднання з сервером.'
+        );
       } finally {
         setLoading(false);
       }
     };
 
     fetchLandmarkFromDb();
-  }, []);
+  }, [showAlert]);
 
   // JS-колбек, куди прилітають дані про живі кадри з нативного потоку камери
   const handleLiveFrame = Worklets.createRunOnJS((width: number, height: number) => {

@@ -8,6 +8,12 @@ export interface UserProfile {
     email: string;
 }
 
+interface UpdateProfilePayload {
+    name?: string;
+    email?: string;
+    newPassword?: string;
+}
+
 interface AuthContextType {
     user: UserProfile | null;
     token: string | null;
@@ -15,6 +21,8 @@ interface AuthContextType {
     isInitializing: boolean;
     login: (email: string, password: string) => Promise<void>;
     register: (name: string, email: string, password: string) => Promise<void>;
+    updateProfile: (payload: UpdateProfilePayload) => Promise<void>;
+    deleteAccount: () => Promise<void>;
     logout: () => Promise<void>;
 }
 
@@ -60,6 +68,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ]);
     };
 
+    const clearSession = async () => {
+        setUser(null);
+        setToken(null);
+        await Promise.all([
+            AsyncStorage.removeItem(TOKEN_KEY),
+            AsyncStorage.removeItem(USER_KEY),
+        ]);
+    };
+
     const login = async (email: string, password: string) => {
         setIsLoading(true);
         try {
@@ -70,12 +87,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
             const data = await response.json().catch(() => ({}));
-
             if (!response.ok) {
                 throw new Error(data.message || data.error || 'Невірна пошта або пароль');
             }
 
-            const authToken = data.token || data.accessToken || 'session-token';
+            const authToken = data.token || data.accessToken;
             const userProfile: UserProfile = data.user || {
                 id: data.id,
                 name: data.name || email.split('@')[0],
@@ -102,12 +118,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
 
             const data = await response.json().catch(() => ({}));
-
             if (!response.ok) {
                 throw new Error(data.message || data.error || 'Помилка під час реєстрації');
             }
 
-            const authToken = data.token || data.accessToken || 'session-token';
+            const authToken = data.token || data.accessToken;
             const userProfile: UserProfile = data.user || {
                 id: data.id,
                 name: name.trim(),
@@ -120,18 +135,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
+    const updateProfile = async (payload: UpdateProfilePayload) => {
+        if (!token) {
+            throw new Error('Сесія не знайдена. Увійдіть знову.');
+        }
+
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'Не вдалося оновити профіль');
+            }
+
+            if (data.user) {
+                setUser(data.user);
+                await AsyncStorage.setItem(USER_KEY, JSON.stringify(data.user));
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const deleteAccount = async () => {
+        if (!token) {
+            await clearSession();
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok && response.status !== 401) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.message || 'Не вдалося видалити акаунт');
+            }
+
+            await clearSession();
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const logout = async () => {
-        setUser(null);
-        setToken(null);
-        await Promise.all([
-            AsyncStorage.removeItem(TOKEN_KEY),
-            AsyncStorage.removeItem(USER_KEY),
-        ]);
+        await clearSession();
     };
 
     return (
         <AuthContext.Provider
-            value={{ user, token, isLoading, isInitializing, login, register, logout }}
+            value={{
+                user,
+                token,
+                isLoading,
+                isInitializing,
+                login,
+                register,
+                updateProfile,
+                deleteAccount,
+                logout,
+            }}
         >
             {children}
         </AuthContext.Provider>

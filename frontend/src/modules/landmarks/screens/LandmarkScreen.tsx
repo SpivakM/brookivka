@@ -15,6 +15,7 @@ import { LandmarkCard, Landmark } from '../components/LandmarkCard';
 import { COLORS } from '../../../shared/constants/theme';
 import { API_BASE_URL } from '../../../shared/constants/apiConfig';
 import { useTheme } from '../../../shared/context/ThemeContext';
+import { useAlert } from '../../../shared/context/AlertContext';
 
 interface LandmarksScreenProps {
   navigation?: any;
@@ -22,6 +23,7 @@ interface LandmarksScreenProps {
 
 export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) => {
   const { colors } = useTheme();
+  const { showAlert } = useAlert();
   const [searchQuery, setSearchQuery] = useState('');
   const [landmarks, setLandmarks] = useState<Landmark[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -42,6 +44,11 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
     } catch (err: any) {
       console.error('Failed to fetch landmarks:', err);
       setError(`[${API_BASE_URL}] ${err.message || 'Network error'}`);
+      showAlert(
+        'error',
+        'Помилка завантаження',
+        `Не вдалося отримати список памʼяток (${err.message || 'Network error'}).`
+      );
     } finally {
       setLoading(false);
     }
