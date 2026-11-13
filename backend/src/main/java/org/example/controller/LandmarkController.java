@@ -3,6 +3,7 @@ package org.example.controller;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.LandmarkResponseDto;
 import org.example.entity.Landmark;
+import org.example.entity.LandmarkType;
 import org.example.repository.LandmarkRepository;
 import org.example.service.LandmarkMediaService;
 import org.springframework.http.MediaType;
@@ -27,9 +28,24 @@ public class LandmarkController {
             @RequestParam double lng,
             @RequestParam(defaultValue = "500") double radius) {
 
-        List<Landmark> landmarks = landmarkRepository.findNearbyLandmarks(lat, lng, radius);
-        List<LandmarkResponseDto> dtos = landmarks.stream()
-                .map(this::toDto)
+        List<LandmarkResponseDto> dtos = landmarkRepository.findNearbyLandmarks(lat, lng, radius)
+                .stream()
+                .map(p -> LandmarkResponseDto.builder()
+                        .id(p.getId())
+                        .name(p.getName())
+                        .description(p.getDescription())
+                        .fullDescription(p.getFullDescription())
+                        .architectureStyle(p.getArchitectureStyle())
+                        .buildYear(p.getBuildYear())
+                        .photoUrl(p.getPhotoUrl())
+                        .category(p.getCategory())
+                        .latitude(p.getLatitude())
+                        .longitude(p.getLongitude())
+                        .objectType(p.getObjectType() != null ? LandmarkType.valueOf(p.getObjectType()) : LandmarkType.BUILDING)
+                        .distanceMeters(p.getDistanceMeters())
+                        .bearingDegrees(p.getBearingDegrees())
+                        .visibilityRadiusMeters(p.getVisibilityRadiusMeters())
+                        .build())
                 .toList();
 
         return ResponseEntity.ok(dtos);
@@ -62,6 +78,8 @@ public class LandmarkController {
                 .category(l.getCategory())
                 .latitude(l.getLocation().getY())
                 .longitude(l.getLocation().getX())
+                .objectType(l.getObjectType())
+                .visibilityRadiusMeters(l.getVisibilityRadiusMeters())
                 .build();
     }
 }
