@@ -7,13 +7,11 @@ import {
   StatusBar,
   Platform,
   TouchableOpacity,
-  PermissionsAndroid,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
-import Geolocation from 'react-native-geolocation-service';
 
 import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
 import { FooterNav } from '../../../shared/components/FooterNav';
@@ -31,11 +29,6 @@ export interface BackendLandmark {
   buildYear?: number;
   photoUrl?: string;
   category?: string;
-  latitude: number;
-  longitude: number;
-}
-
-interface Coordinate {
   latitude: number;
   longitude: number;
 }
@@ -110,8 +103,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   // Дані з бекенду та геолокація
   const [landmarks, setLandmarks] = useState<BackendLandmark[]>([]);
   const [isLoadingLandmarks, setIsLoadingLandmarks] = useState(false);
-  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
-  const [isLocationInitialized, setIsLocationInitialized] = useState(false);
 
   // Власний маршрут користувача
   const [customWaypoints, setCustomWaypoints] = useState<BackendLandmark[]>([]);
@@ -138,64 +129,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
     }
   };
 
-  // Визначення геолокації та початкове завантаження пам'яток
+  // Load the fallback area without invoking the native geolocation module.
+  // The module can crash the app on some Android builds after permission approval.
   useEffect(() => {
-    const initLocationAndData = async () => {
-      let hasPermission = false;
-
-      try {
-        if (Platform.OS === 'android') {
-          const permissions = await PermissionsAndroid.requestMultiple([
-            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-            PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
-          ]);
-          hasPermission =
-            permissions[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] ===
-              PermissionsAndroid.RESULTS.GRANTED ||
-            permissions[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] ===
-              PermissionsAndroid.RESULTS.GRANTED;
-        } else if (Platform.OS === 'ios') {
-          const auth = await Geolocation.requestAuthorization('whenInUse');
-          hasPermission = auth === 'granted';
-        }
-      } catch (error) {
-        console.warn('Не вдалося отримати дозвіл на геолокацію:', error);
-      }
-
-      setIsLocationInitialized(true);
-
-      if (hasPermission) {
-        try {
-          Geolocation.getCurrentPosition(
-            (position) => {
-              const coords = {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-              };
-              setUserLocation(coords);
-              fetchNearbyLandmarks(coords.latitude, coords.longitude, 5000);
-            },
-            (error) => {
-              console.warn('Помилка GPS, завантажуємо центр Львова:', error.message);
-              fetchNearbyLandmarks(
-                LVIV_INITIAL_REGION.latitude,
-                LVIV_INITIAL_REGION.longitude,
-                3000
-              );
-            },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-          );
-        } catch (error) {
-          console.warn('Не вдалося отримати поточне місце:', error);
-          fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
-        }
-      } else {
-        // Якщо користувач не дав дозвіл на GPS — все одно показуємо пам'ятки центру Львова
-        fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
-      }
-    };
-
-    initLocationAndData();
+    fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
   }, []);
 
   // Додавання/видалення пам'ятки з власного маршруту при натисканні на маркер
@@ -231,10 +168,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
 
   // Координати для побудови маршруту
   const routeOrigin =
-    userLocation ||
-    (customWaypoints.length > 0
+    customWaypoints.length > 0
       ? { latitude: customWaypoints[0].latitude, longitude: customWaypoints[0].longitude }
-      : null);
+      : null;
 
   const routeDestination =
     customWaypoints.length > 0
@@ -245,7 +181,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       : null;
 
   const intermediateWaypoints = (
-    userLocation ? customWaypoints.slice(0, -1) : customWaypoints.slice(1, -1)
+    customWaypoints.slice(1, -1)
   ).map((w) => ({
     latitude: w.latitude,
     longitude: w.longitude,
@@ -266,31 +202,15 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       />
       <View style={styles.body}>
         <View style={styles.mapContainer}>
-          {!isLocationInitialized ? (
-            <View style={styles.mapLoading}>
-              <ActivityIndicator size="large" color={COLORS.buttonBrown} />
-            </View>
-          ) : canRenderGoogleMap ? (
+          {canRenderGoogleMap ? (
             <MapView
               ref={mapRef}
               provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
               style={styles.mapImage}
               initialRegion={LVIV_INITIAL_REGION}
-              // Render the current position ourselves. The native location layer
-              // can crash on some Android Google Maps configurations after permission is granted.
-              showsUserLocation={false}
-              showsMyLocationButton={false}
               showsCompass={false}
               onMapReady={() => console.log('[MapScreen] map is ready')}
             >
-              {userLocation && (
-                <Marker
-                  coordinate={userLocation}
-                  title="Your location"
-                  pinColor="#1565C0"
-                />
-              )}
-
               {/* Маркери пам'яток, отриманих із бази даних */}
               {filteredLandmarks.map((landmark) => {
                 const selectedIndex = customWaypoints.findIndex((w) => w.id === landmark.id);
@@ -318,7 +238,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
               {/* Прокладання маршруту через Google Directions API */}
               {routeOrigin &&
                 routeDestination &&
-                (userLocation || customWaypoints.length > 1) &&
+                customWaypoints.length > 1 &&
                 API_CONFIG.googleMapsApiKey && (
                   <MapViewDirections
                     origin={routeOrigin}
