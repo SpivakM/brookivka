@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL } from '../../../shared/constants/apiConfig';
 import {
   View,
   Text,
@@ -47,10 +48,7 @@ const LVIV_INITIAL_REGION = {
   longitudeDelta: 0.015,
 };
 
-// Базова URL адреса бекенду (Android емулятор бачить localhost ПК як 10.0.2.2)
-const BACKEND_URL =
-  (API_CONFIG as any).baseUrl ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080');
+const BACKEND_URL = API_BASE_URL;
 
 const LVIV_ROUTES: RouteItem[] = [
   {
