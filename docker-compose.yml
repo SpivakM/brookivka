@@ -46,6 +46,11 @@ services:
       - "8090:8090"
     env_file:
       - ./ai-service/.env
+    environment:
+      - BACKEND_BASE_URL=http://backend:8082
+      - API_URL=http://backend:8082
+      - GEO_SEARCH_RADIUS_METERS=3000
+      - MATCH_THRESHOLD=0.55
     volumes:
       - ./ai-service/data:/app/data
 
