@@ -1,5 +1,5 @@
 # ==========================================
-# Java & Backend (Існуючі правила)
+# Java & Backend
 # ==========================================
 target/
 *.class
@@ -41,15 +41,32 @@ out/
 *.bak
 *.swp
 
+# ==========================================
+# Environment, Secrets & Local Overrides
+# ==========================================
+.venv/
+__pycache__/
+*.py[cod]
 .env
-.env.development
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.pem
 *.key
 application-local.yml
 application-local.properties
+docker-compose.override.yml
 
+# ==========================================
+# AI Service & Generated Data / Demos
+# ==========================================
+ai-service/data/index/
+*.faiss
+*.mp4
+*.mov
+
+# ==========================================
+# OS & Infra
+# ==========================================
 .DS_Store
 .DS_Store?
 ._*
@@ -58,11 +75,11 @@ application-local.properties
 ehthumbs.db
 Thumbs.db
 
-
 infra/.terraform/
 infra/*.tfstate*
+
 # ==========================================
-# React Native & Frontend (Додані правила)
+# React Native & Frontend
 # ==========================================
 **/node_modules/
 **/.pnp
@@ -73,6 +90,7 @@ infra/*.tfstate*
 .npm
 .yarn/
 **/.bundle/
+frontend/.env
 
 # Android
 **/android/app/build/

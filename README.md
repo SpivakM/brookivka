@@ -5,9 +5,27 @@ Ukraine. It combines a landmark catalog, map routes, camera-based AR, and an AI 
 
 ## Documentation
 
+- [Documentation index](docs/README.md)
 - [General project overview](docs/PROJECT_OVERVIEW.md)
+- [Current project status](docs/STATUS.md)
+- [Roadmap](docs/ROADMAP.md)
 - [AI project specification](docs/AI_PROJECT_SPECIFICATION.md)
 - [AI implementation plan](docs/AI_IMPLEMENTATION_PLAN.md)
+- [Master implementation plan](docs/IMPLEMENTATION_PLAN.md)
+- [API reference](docs/API_REFERENCE.md)
+- [Development setup](docs/DEVELOPMENT_SETUP.md)
+- [Backend implementation plan](docs/BACKEND_IMPLEMENTATION_PLAN.md)
+- [Frontend implementation plan](docs/FRONTEND_IMPLEMENTATION_PLAN.md)
+- [Authentication implementation plan](docs/AUTH_IMPLEMENTATION_PLAN.md)
+- [Landmark data and media plan](docs/MEDIA_DATA_IMPLEMENTATION_PLAN.md)
+- [Infrastructure implementation plan](docs/INFRASTRUCTURE_IMPLEMENTATION_PLAN.md)
+- [Testing and quality plan](docs/TESTING_IMPLEMENTATION_PLAN.md)
+- [Architecture decisions](docs/adr/README.md)
+- [Operations runbook](docs/OPERATIONS_RUNBOOK.md)
+- [Release process](docs/RELEASE_PROCESS.md)
+- [Requirements traceability](docs/REQUIREMENTS_TRACEABILITY.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
 
 ## Repository structure
 

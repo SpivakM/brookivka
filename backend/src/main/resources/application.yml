@@ -31,3 +31,7 @@ aws:
     bucket: ${AWS_S3_BUCKET:}
   cdn:
     base-url: ${AWS_CDN_BASE_URL:}
+
+ai-service:
+  url: ${AI_SERVICE_URL:http://localhost:8090}
+  search-radius-meters: ${AI_SEARCH_RADIUS_METERS:150.0}

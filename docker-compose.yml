@@ -31,9 +31,29 @@ services:
       AWS_S3_REGION: ${AWS_S3_REGION:-eu-north-1}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
       AWS_CDN_BASE_URL: ${AWS_CDN_BASE_URL}
+      AI_SERVICE_URL: http://ai-service:8090
     depends_on:
       db:
         condition: service_healthy
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: ar_ai_service
+    restart: always
+    ports:
+      - "8090:8090"
+    env_file:
+      - ./ai-service/.env
+      - ./frontend/.env
+    environment:
+      - BACKEND_BASE_URL=http://backend:8082
+      - API_URL=http://backend:8082
+      - GEO_SEARCH_RADIUS_METERS=3000
+      - MATCH_THRESHOLD=0.55
+    volumes:
+      - ./ai-service/data:/app/data
 
 volumes:
   postgres_data:
