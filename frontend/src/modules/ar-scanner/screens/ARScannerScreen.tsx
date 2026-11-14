@@ -16,9 +16,7 @@ import {
   Camera,
   useCameraDevice,
   useCameraPermission,
-  useFrameProcessor,
 } from 'react-native-vision-camera';
-import { Worklets } from 'react-native-worklets-core';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { COLORS } from '../../../shared/constants/theme';
 import { API_BASE_URL } from '../../../shared/constants/apiConfig';
@@ -111,7 +109,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const swipeOffset = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const frameCounterRef = useRef<number>(0);
   const landmarkRef = useRef<Landmark | null>(null);
   landmarkRef.current = landmark;
 
@@ -167,20 +164,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
 
     fetchLandmarkFromDb();
   }, [showAlert]);
-
-  // JS-колбек, куди прилітають дані про живі кадри з нативного потоку камери (НЕ ЗМІНЮВАЛОСЬ)
-  const handleLiveFrame = Worklets.createRunOnJS((width: number, height: number) => {
-    frameCounterRef.current += 1;
-    if (frameCounterRef.current % 30 === 0) {
-      setLiveFrameStatus(`AI Live: ${width}×${height} | кадр #${frameCounterRef.current}`);
-    }
-  });
-
-  // Живий обробник відеопотоку (Frame Processor) (НЕ ЗМІНЮВАЛОСЬ)
-  const frameProcessor = useFrameProcessor((frame) => {
-    'worklet';
-    handleLiveFrame(frame.width, frame.height);
-  }, [handleLiveFrame]);
 
   const toggleOverlay = () => {
     if (isOpen) {
@@ -282,7 +265,6 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
             style={StyleSheet.absoluteFill}
             device={device}
             isActive={true}
-            frameProcessor={frameProcessor}
             pixelFormat="yuv"
           />
         ) : (
