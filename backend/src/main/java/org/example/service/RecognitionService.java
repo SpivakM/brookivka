@@ -51,11 +51,10 @@ public class RecognitionService {
         if (image == null || image.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Image file is required");
         }
-        if (latitude < -90.0 || latitude > 90.0 || longitude < -180.0 || longitude > 180.0) {
+        if (latitude < -90.0 || latitude > 90.0 || longitude < -180.0 || longitude < -180.0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid GPS coordinates");
         }
 
-        // Розширюємо радіус пошуку на величину GPS-похибки (але не більше +100м)
         double accuracyBuffer = (gpsAccuracyMeters != null && gpsAccuracyMeters > 0)
                 ? Math.min(gpsAccuracyMeters, 100.0)
                 : 0.0;
@@ -64,7 +63,6 @@ public class RecognitionService {
         List<LandmarkRepository.NearbyLandmarkProjection> nearbyProjections =
                 landmarkRepository.findNearbyLandmarks(latitude, longitude, effectiveRadius);
 
-        // Якщо поруч взагалі немає зареєстрованих пам'яток — не викликаємо AI-сервіс
         if (nearbyProjections.isEmpty()) {
             return RecognitionMatchResponseDto.builder()
                     .status("NOT_FOUND")
@@ -184,6 +182,9 @@ public class RecognitionService {
     }
 
     private LandmarkResponseDto toLandmarkDto(Landmark l, AiScoredCandidateDto scored) {
+        List<String> photos = l.getPhotoUrls() != null ? l.getPhotoUrls() : Collections.emptyList();
+        String primaryPhoto = photos.isEmpty() ? null : photos.get(0);
+
         return LandmarkResponseDto.builder()
                 .id(l.getId())
                 .name(l.getName())
@@ -191,7 +192,8 @@ public class RecognitionService {
                 .fullDescription(l.getFullDescription())
                 .architectureStyle(l.getArchitectureStyle())
                 .buildYear(l.getBuildYear())
-                .photoUrl(l.getPhotoUrl())
+                .photoUrl(primaryPhoto)
+                .photoUrls(photos)
                 .category(l.getCategory())
                 .latitude(l.getLocation().getY())
                 .longitude(l.getLocation().getX())

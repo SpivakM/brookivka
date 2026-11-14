@@ -19,6 +19,7 @@ public interface LandmarkRepository extends JpaRepository<Landmark, Long> {
         String getArchitectureStyle();
         Integer getBuildYear();
         String getPhotoUrl();
+        String getPhotoUrlsRaw();
         String getCategory();
         String getObjectType();
         Double getVisibilityRadiusMeters();
@@ -36,7 +37,8 @@ public interface LandmarkRepository extends JpaRepository<Landmark, Long> {
             l.full_description AS fullDescription,
             l.architecture_style AS architectureStyle,
             l.build_year AS buildYear,
-            l.photo_url AS photoUrl,
+            (SELECT lp.photo_url FROM landmark_photos lp WHERE lp.landmark_id = l.id ORDER BY lp.photo_order ASC LIMIT 1) AS photoUrl,
+            ARRAY_TO_STRING(ARRAY(SELECT lp.photo_url FROM landmark_photos lp WHERE lp.landmark_id = l.id ORDER BY lp.photo_order ASC), '|') AS photoUrlsRaw,
             l.category AS category,
             l.object_type AS objectType,
             l.visibility_radius_m AS visibilityRadiusMeters,

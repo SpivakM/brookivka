@@ -64,12 +64,6 @@ public class LandmarkMediaService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Пам'ятку не знайдено"));
 
         String cleanCdnBase = normalizeBaseUrl(cdnBaseUrl);
-
-        if (landmark.getPhotoUrl() != null && landmark.getPhotoUrl().startsWith(cleanCdnBase + "/")) {
-            String oldKey = landmark.getPhotoUrl().substring((cleanCdnBase + "/").length());
-            deleteFromS3Quietly(oldKey);
-        }
-
         String extension = ALLOWED_CONTENT_TYPES.get(contentType);
         String key = "landmarks/" + landmarkId + "/" + UUID.randomUUID() + extension;
 
@@ -87,23 +81,46 @@ public class LandmarkMediaService {
         }
 
         String photoUrl = cleanCdnBase + "/" + key;
-        landmark.setPhotoUrl(photoUrl);
+        if (landmark.getPhotoUrls() == null) {
+            landmark.setPhotoUrls(new ArrayList<>());
+        }
+        landmark.getPhotoUrls().add(photoUrl);
+
         return landmarkRepository.save(landmark);
     }
 
     @Transactional
-    public void deleteLandmarkPhoto(Long landmarkId) {
+    public Landmark deleteLandmarkPhoto(Long landmarkId, String photoUrlToDelete) {
         Landmark landmark = landmarkRepository.findById(landmarkId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Пам'ятку не знайдено"));
 
-        String cleanCdnBase = normalizeBaseUrl(cdnBaseUrl);
-        if (landmark.getPhotoUrl() != null && landmark.getPhotoUrl().startsWith(cleanCdnBase + "/")) {
-            String key = landmark.getPhotoUrl().substring((cleanCdnBase + "/").length());
-            deleteFromS3Quietly(key);
+        List<String> photos = landmark.getPhotoUrls();
+        if (photos == null || photos.isEmpty()) {
+            return landmark;
         }
 
-        landmark.setPhotoUrl(null);
-        landmarkRepository.save(landmark);
+        String cleanCdnBase = normalizeBaseUrl(cdnBaseUrl);
+
+        if (photoUrlToDelete != null && !photoUrlToDelete.isBlank()) {
+            boolean removed = photos.remove(photoUrlToDelete);
+            if (!removed) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Вказане фото не знайдено у цієї пам'ятки");
+            }
+            if (photoUrlToDelete.startsWith(cleanCdnBase + "/")) {
+                String key = photoUrlToDelete.substring((cleanCdnBase + "/").length());
+                deleteFromS3Quietly(key);
+            }
+        } else {
+            for (String url : photos) {
+                if (url != null && url.startsWith(cleanCdnBase + "/")) {
+                    String key = url.substring((cleanCdnBase + "/").length());
+                    deleteFromS3Quietly(key);
+                }
+            }
+            photos.clear();
+        }
+
+        return landmarkRepository.save(landmark);
     }
 
     @Transactional
@@ -116,7 +133,7 @@ public class LandmarkMediaService {
 
         ListObjectsV2Response listRes = s3Client.listObjectsV2(listReq);
         List<S3PhotoInfo> result = new ArrayList<>();
-        Map<Long, String> firstPhotoByLandmark = new HashMap<>();
+        Map<Long, List<String>> photosByLandmark = new HashMap<>();
 
         for (S3Object obj : listRes.contents()) {
             String key = obj.key();
@@ -131,17 +148,17 @@ public class LandmarkMediaService {
                 Long landmarkId = Long.parseLong(parts[1]);
                 String fullUrl = cleanCdnBase + "/" + key;
                 result.add(new S3PhotoInfo(landmarkId, key, fullUrl));
-                firstPhotoByLandmark.putIfAbsent(landmarkId, fullUrl);
+                photosByLandmark.computeIfAbsent(landmarkId, k -> new ArrayList<>()).add(fullUrl);
             } catch (NumberFormatException ignored) {
             }
         }
 
-        for (Map.Entry<Long, String> entry : firstPhotoByLandmark.entrySet()) {
+        for (Map.Entry<Long, List<String>> entry : photosByLandmark.entrySet()) {
             Optional<Landmark> opt = landmarkRepository.findById(entry.getKey());
             if (opt.isPresent()) {
                 Landmark landmark = opt.get();
-                if (landmark.getPhotoUrl() == null || landmark.getPhotoUrl().isBlank()) {
-                    landmark.setPhotoUrl(entry.getValue());
+                if (landmark.getPhotoUrls() == null || landmark.getPhotoUrls().isEmpty()) {
+                    landmark.setPhotoUrls(new ArrayList<>(entry.getValue()));
                     landmarkRepository.save(landmark);
                 }
             }
@@ -157,7 +174,7 @@ public class LandmarkMediaService {
                     .key(key)
                     .build());
         } catch (Exception e) {
-            log.warn("Не вдалося видалити старий об'єкт із S3 ({}): {}", key, e.getMessage());
+            log.warn("Не вдалося видалити об'єкт із S3 ({}): {}", key, e.getMessage());
         }
     }
 
