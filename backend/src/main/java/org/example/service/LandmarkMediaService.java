@@ -13,18 +13,25 @@ import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class LandmarkMediaService {
+
+    public record S3PhotoInfo(Long landmarkId, String key, String photoUrl) {
+    }
 
     private static final Map<String, String> ALLOWED_CONTENT_TYPES = Map.of(
             "image/jpeg", ".jpg",
@@ -113,6 +120,50 @@ public class LandmarkMediaService {
         }
 
         return landmarkRepository.save(landmark);
+    }
+
+    @Transactional
+    public List<S3PhotoInfo> listAllS3LandmarkPhotos() {
+        String cleanCdnBase = normalizeBaseUrl(cdnBaseUrl);
+        ListObjectsV2Request listReq = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .prefix("landmarks/")
+                .build();
+
+        ListObjectsV2Response listRes = s3Client.listObjectsV2(listReq);
+        List<S3PhotoInfo> result = new ArrayList<>();
+        Map<Long, String> firstPhotoByLandmark = new HashMap<>();
+
+        for (S3Object obj : listRes.contents()) {
+            String key = obj.key();
+            if (key == null || key.endsWith("/")) {
+                continue;
+            }
+            String[] parts = key.split("/");
+            if (parts.length < 3) {
+                continue;
+            }
+            try {
+                Long landmarkId = Long.parseLong(parts[1]);
+                String fullUrl = cleanCdnBase + "/" + key;
+                result.add(new S3PhotoInfo(landmarkId, key, fullUrl));
+                firstPhotoByLandmark.putIfAbsent(landmarkId, fullUrl);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        for (Map.Entry<Long, String> entry : firstPhotoByLandmark.entrySet()) {
+            Optional<Landmark> opt = landmarkRepository.findById(entry.getKey());
+            if (opt.isPresent()) {
+                Landmark landmark = opt.get();
+                if (landmark.getPhotoUrl() == null || landmark.getPhotoUrl().isBlank()) {
+                    landmark.setPhotoUrl(entry.getValue());
+                    landmarkRepository.save(landmark);
+                }
+            }
+        }
+
+        return result;
     }
 
     private void deleteFromS3Quietly(String key) {
