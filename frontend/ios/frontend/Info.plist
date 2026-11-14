@@ -76,5 +76,7 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Застосунку потрібен доступ до камери для функцій AR-сканера.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Дозвольте доступ до геолокації, щоб прокласти маршрут від вашого поточного місця.</string>
 </dict>
 </plist>
