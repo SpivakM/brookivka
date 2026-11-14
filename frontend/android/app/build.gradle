@@ -1,0 +1,118 @@
+project.ext.envConfigFile = "../../.env"
+
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+
+react {
+    /* Autolinking */
+    autolinkLibrariesWithApp()
+}
+
+def enableProguardInReleaseBuilds = false
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+android {
+    ndkVersion "28.2.13676358"
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "com.frontend"
+    sourceSets {
+        main {
+            def autolinkingDir = new File(rootProject.projectDir, "../../../../../BrooBuild/${rootProject.name}/app/generated/autolinking/src/main/java").canonicalFile
+            java.srcDir(autolinkingDir)
+            kotlin.srcDir(autolinkingDir)
+        }
+    }
+    defaultConfig {
+        applicationId "com.frontend"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        def mapsKey = project.env.get("GOOGLE_MAPS_API_KEY") ?: ""
+        resValue "string", "GOOGLE_MAPS_API_KEY", mapsKey
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DPROJECT_BUILD_DIR=" + new File(rootProject.projectDir, "../../../../../BrooBuild/${rootProject.name}/app").canonicalPath.replace("\\", "/")
+            }
+        }
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword project.findProperty('DEBUG_STORE_PASSWORD') ?: 'android'
+            keyAlias project.findProperty('DEBUG_KEY_ALIAS') ?: 'androiddebugkey'
+            keyPassword project.findProperty('DEBUG_KEY_PASSWORD') ?: 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
+        }
+    }
+
+    packagingOptions {
+        pickFirst 'lib/x86/libc++_shared.so'
+        pickFirst 'lib/x86_64/libc++_shared.so'
+        pickFirst 'lib/armeabi-v7a/libc++_shared.so'
+        pickFirst 'lib/arm64-v8a/libc++_shared.so'
+    }
+
+    externalNativeBuild {
+        cmake {
+            buildStagingDirectory = new File(rootProject.projectDir, "../../../../../BrooBuild/cxx/app").canonicalFile
+        }
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}
+
+tasks.matching { it.name in ['mergeDebugNativeLibs', 'mergeReleaseNativeLibs'] }.configureEach {
+    outputs.upToDateWhen { false }
+    doLast {
+        def ndkDir = android.ndkDirectory
+        def os = org.gradle.internal.os.OperatingSystem.current()
+        def hostTag = os.isWindows() ? "windows-x86_64" : (os.isMacOsX() ? "darwin-x86_64" : "linux-x86_64")
+        def ndkLib = "${ndkDir}/toolchains/llvm/prebuilt/${hostTag}/sysroot/usr/lib"
+        def archMap = [
+            "arm64-v8a"  : "${ndkLib}/aarch64-linux-android/libc++_shared.so",
+            "armeabi-v7a": "${ndkLib}/arm-linux-androideabi/libc++_shared.so",
+            "x86"        : "${ndkLib}/i686-linux-android/libc++_shared.so",
+            "x86_64"     : "${ndkLib}/x86_64-linux-android/libc++_shared.so"
+        ]
+        outputs.files.each { outDir ->
+            if (outDir.isDirectory()) {
+                fileTree(outDir).matching {
+                    include '**/libc++_shared.so'
+                }.each { targetFile ->
+                    def arch = targetFile.parentFile.name
+                    def srcPath = archMap[arch]
+                    if (srcPath != null && file(srcPath).exists()) {
+                        def srcFile = file(srcPath)
+                        println ">>> Replacing ${arch}/libc++_shared.so with NDK 28 (${srcFile.length()} bytes)"
+                        targetFile.bytes = srcFile.bytes
+                    }
+                }
+            }
+        }
+    }
+}

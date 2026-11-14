@@ -1,4 +1,6 @@
-
+# ==========================================
+# Java & Backend
+# ==========================================
 target/
 *.class
 *.jar
@@ -9,14 +11,12 @@ target/
 *.tar.gz
 *.rar
 
-
 .idea/
 *.iml
 *.iws
 *.ipr
 out/
 .idea_modules/
-
 
 .apt_generated
 .classpath
@@ -26,15 +26,13 @@ out/
 .springBeans
 .sts4-cache
 
-
 .vscode/
-
+!.vscode/settings.json
 
 /nbproject/private/
 /build/
 /nbbuild/
 /dist/
-
 
 *.log
 *.sqlite
@@ -43,16 +41,32 @@ out/
 *.bak
 *.swp
 
-
+# ==========================================
+# Environment, Secrets & Local Overrides
+# ==========================================
+.venv/
+__pycache__/
+*.py[cod]
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.pem
 *.key
 application-local.yml
 application-local.properties
+docker-compose.override.yml
 
+# ==========================================
+# AI Service & Generated Data / Demos
+# ==========================================
+ai-service/data/index/
+*.faiss
+*.mp4
+*.mov
 
+# ==========================================
+# OS & Infra
+# ==========================================
 .DS_Store
 .DS_Store?
 ._*
@@ -60,3 +74,43 @@ application-local.properties
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+infra/.terraform/
+infra/*.tfstate*
+
+# ==========================================
+# React Native & Frontend
+# ==========================================
+**/node_modules/
+**/.pnp
+.pnp.js
+**/coverage/
+.metro-health-check*
+.expo/
+.npm
+.yarn/
+**/.bundle/
+frontend/.env
+
+# Android
+**/android/app/build/
+**/android/.gradle/
+**/android/build/
+**/android/local.properties
+**/android/.idea/
+**/android/app/src/main/jniLibs/
+*.keystore
+!**/android/app/debug.keystore
+
+# iOS
+**/ios/Pods/
+**/ios/build/
+**/ios/DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcworkspace
+
+# C++ build artifacts
+**/.cxx/

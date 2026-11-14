@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: ar_postgis_db
+    restart: always
+    environment:
+      POSTGRES_DB: ar_tourist_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ar_tourist_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ar_backend_app
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/ar_tourist_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-postgres_password}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      AWS_S3_REGION: ${AWS_S3_REGION:-eu-north-1}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_CDN_BASE_URL: ${AWS_CDN_BASE_URL}
+      AI_SERVICE_URL: http://ai-service:8090
+    depends_on:
+      db:
+        condition: service_healthy
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: ar_ai_service
+    restart: always
+    ports:
+      - "8090:8090"
+    env_file:
+      - ./ai-service/.env
+    environment:
+      - BACKEND_BASE_URL=http://backend:8082
+      - API_URL=http://backend:8082
+      - GEO_SEARCH_RADIUS_METERS=3000
+      - MATCH_THRESHOLD=0.55
+    volumes:
+      - ./ai-service/data:/app/data
+
+volumes:
+  postgres_data:
