@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import Svg, { Path } from 'react-native-svg';
 import {
     View,
@@ -9,7 +9,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -17,39 +17,53 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../navigation/types';
 import { COLORS } from '../../../shared/constants/theme';
 import { useTheme } from '../../../shared/context/ThemeContext';
+import { useAuth } from '../../../shared/context/AuthContext';
+import { useAlert } from '../../../shared/context/AlertContext';
+
+const EMAIL_REGEX = /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
 export const LoginScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
     const { colors, themeMode } = useTheme();
+    const { login, isLoading } = useAuth();
+    const { showAlert } = useAlert();
+    const scrollViewRef = useRef<any>(null);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleLogin = () => {
-        if (!email.trim() || !password.trim()) {
-            Alert.alert('Заповніть поля', 'Будь ласка, введіть пошту та пароль.');
+    const handleLogin = async () => {
+        if (!email.trim()) {
+            showAlert('error', 'Не вказано пошту', 'Введіть електронну пошту.');
+            return;
+        }
+        if (!EMAIL_REGEX.test(email.trim())) {
+            showAlert(
+                'error',
+                'Некоректна пошта',
+                'Некоректний формат електронної пошти (приклад: name@example.com).'
+            );
+            return;
+        }
+        if (!password.trim()) {
+            showAlert('error', 'Не введено пароль', 'Введіть пароль від вашого акаунта.');
             return;
         }
 
-        // Тут далі підключиш запит до вашого бекенду / Firebase / Supabase
-        Alert.alert(
-            'Вітаємо в Brookivka!',
-            `Ви успішно увійшли як ${email}`,
-            [
-                {
-                    text: 'Чудово',
-                    onPress: () => navigation.navigate('Entry'),
-                },
-            ]
-        );
+        try {
+            await login(email, password);
+            navigation.navigate('Entry');
+        } catch (err: any) {
+            showAlert('error', 'Помилка входу', err.message || 'Не вдалося увійти в акаунт.');
+        }
     };
 
     return (
         <KeyboardAvoidingView
             style={[styles.container, { backgroundColor: colors.background }]}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             {/* Верхня панель у стилі HeaderNav */}
             <View
@@ -82,9 +96,10 @@ export const LoginScreen: React.FC = () => {
             </View>
 
             <ScrollView
+                ref={scrollViewRef}
                 contentContainerStyle={[
                     styles.scrollContent,
-                    { paddingBottom: insets.bottom + 24 },
+                    { paddingBottom: insets.bottom + 140 },
                 ]}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
@@ -128,6 +143,7 @@ export const LoginScreen: React.FC = () => {
                             onChangeText={setEmail}
                             keyboardType="email-address"
                             autoCapitalize="none"
+                            editable={!isLoading}
                         />
                     </View>
 
@@ -152,6 +168,12 @@ export const LoginScreen: React.FC = () => {
                                 onChangeText={setPassword}
                                 secureTextEntry={!showPassword}
                                 autoCapitalize="none"
+                                editable={!isLoading}
+                                onFocus={() => {
+                                    setTimeout(() => {
+                                        scrollViewRef.current?.scrollTo({ y: 120, animated: true });
+                                    }, 150);
+                                }}
                             />
                             <TouchableOpacity
                                 onPress={() => setShowPassword(!showPassword)}
@@ -167,7 +189,8 @@ export const LoginScreen: React.FC = () => {
                     <TouchableOpacity
                         style={styles.forgotBtn}
                         onPress={() =>
-                            Alert.alert(
+                            showAlert(
+                                'success',
                                 'Відновлення пароля',
                                 'Введіть вашу пошту, і ми надішлемо інструкцію для скидання пароля.'
                             )
@@ -180,11 +203,16 @@ export const LoginScreen: React.FC = () => {
 
                     {/* Головна кнопка входу */}
                     <TouchableOpacity
-                        style={styles.submitButton}
+                        style={[styles.submitButton, isLoading && { opacity: 0.7 }]}
                         activeOpacity={0.85}
                         onPress={handleLogin}
+                        disabled={isLoading}
                     >
-                        <Text style={styles.submitButtonText}>Увійти в акаунт</Text>
+                        {isLoading ? (
+                            <ActivityIndicator color={COLORS.white} />
+                        ) : (
+                            <Text style={styles.submitButtonText}>Увійти в акаунт</Text>
+                        )}
                     </TouchableOpacity>
                 </View>
 
@@ -209,7 +237,7 @@ export const LoginScreen: React.FC = () => {
                     ]}
                     activeOpacity={0.8}
                     onPress={() =>
-                        Alert.alert('Google Auth', 'Тут підключається вхід через Google.')
+                        showAlert('success', 'Google Auth', 'Тут підключається вхід через Google.')
                     }
                 >
                     <Svg width={20} height={20} viewBox="0 0 24 24" style={styles.googleIcon}>
