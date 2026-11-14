@@ -1,5 +1,6 @@
 import UIKit
 import GoogleMaps
+import RNCConfig
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    GMSServices.provideAPIKey("AIzaSyDXPITzCMC0m54c-5b39CGjFRpIlnmJeo8")
+    if let mapsApiKey = RNCConfig.env(for: "GOOGLE_MAPS_API_KEY"), !mapsApiKey.isEmpty {
+      GMSServices.provideAPIKey(mapsApiKey)
+    } else {
+      NSLog("GOOGLE_MAPS_API_KEY is not configured; Google Maps will be unavailable.")
+    }
     true
   }
 }
