@@ -6,19 +6,42 @@ const http = require('http');
 const envPath = path.resolve(__dirname, '../.env');
 const prodEnvPath = path.resolve(__dirname, '../.env.production');
 
-// 1. Знаходимо локальний IPv4 в мережі (як було в твоєму оригінальному скрипті)
+// 1. Знаходимо реальний IPv4 ноута в локальній мережі (ігноруючи віртуальні інтерфейси WSL/Docker/Hyper-V)
 function getLocalIpAddress() {
   const interfaces = os.networkInterfaces();
+  const virtualKeywords = ['vethernet', 'wsl', 'hyper-v', 'docker', 'vmware', 'virtualbox', 'loopback', 'bluetooth'];
+  const preferredKeywords = ['wi-fi', 'wifi', 'wlan', 'безпроводная', 'бездротова', 'ethernet'];
+
+  let preferredIp = null;
+  let fallbackIp = null;
+
   for (const name of Object.keys(interfaces)) {
+    const lowerName = name.toLowerCase();
+    const isVirtual = virtualKeywords.some((kw) => lowerName.includes(kw));
+    const isPreferred = preferredKeywords.some((kw) => lowerName.includes(kw));
+
     for (const iface of interfaces[name]) {
       if (iface.family === 'IPv4' && !iface.internal) {
-        if (iface.address.startsWith('192.168.') || iface.address.startsWith('10.') || iface.address.startsWith('172.')) {
-          return iface.address;
+        const isPrivate =
+          iface.address.startsWith('192.168.') ||
+          iface.address.startsWith('10.') ||
+          iface.address.startsWith('172.');
+
+        if (!isPrivate || isVirtual) continue;
+
+        if (isPreferred) {
+          preferredIp = iface.address;
+          break;
+        }
+        if (!fallbackIp) {
+          fallbackIp = iface.address;
         }
       }
     }
+    if (preferredIp) break;
   }
-  return '10.0.2.2';
+
+  return preferredIp || fallbackIp || '10.0.2.2';
 }
 
 // 2. Перевіряємо за 1 секунду, чи піднятий локальний Docker-бекенд на 8082 порту
@@ -35,7 +58,7 @@ function checkLocalBackend() {
   });
 }
 
-// 3. Допоміжна функція для оновлення або додавання API_URL у .env (не затираючи інші змінні, якщо вони там є)
+// 3. Оновлюємо API_URL у .env
 function writeEnvFile(targetApiUrl) {
   let content = '';
   if (fs.existsSync(envPath)) {
@@ -55,13 +78,11 @@ async function run() {
   const isLocalRunning = await checkLocalBackend();
 
   if (isLocalRunning) {
-    // Локальний Docker працює -> беремо локальний IP
     const localIp = getLocalIpAddress();
     const localUrl = `http://${localIp}:8082`;
     writeEnvFile(localUrl);
     console.log(`🚀 [setup-env] Local Docker detected! API_URL set to: ${localUrl}`);
   } else if (fs.existsSync(prodEnvPath)) {
-    // Локальний Docker вимкнений -> шукаємо URL у .env.production
     const prodContent = fs.readFileSync(prodEnvPath, 'utf8');
     const match = prodContent.match(/^API_URL=(.+)$/m);
 
@@ -70,14 +91,12 @@ async function run() {
       writeEnvFile(cloudUrl);
       console.log(`☁️ [setup-env] Local Docker is offline. Using Cloud API_URL: ${cloudUrl}`);
     } else {
-      // Якщо .env.production пустий — фолбек на локальний IP
       const localIp = getLocalIpAddress();
       const localUrl = `http://${localIp}:8082`;
       writeEnvFile(localUrl);
       console.log(`⚠️ [setup-env] .env.production is empty. Fallback to local API_URL: ${localUrl}`);
     }
   } else {
-    // Якщо файлу .env.production взагалі немає -> стандартний локальний IP
     const localIp = getLocalIpAddress();
     const localUrl = `http://${localIp}:8082`;
     writeEnvFile(localUrl);

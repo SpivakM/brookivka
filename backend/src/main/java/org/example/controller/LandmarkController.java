@@ -51,6 +51,11 @@ public class LandmarkController {
         return ResponseEntity.ok(dtos);
     }
 
+    @GetMapping("/s3-photos")
+    public ResponseEntity<List<LandmarkMediaService.S3PhotoInfo>> getS3LandmarkPhotos() {
+        return ResponseEntity.ok(landmarkMediaService.listAllS3LandmarkPhotos());
+    }
+
     @PostMapping(value = "/{id}/photo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<LandmarkResponseDto> uploadPhoto(
             @PathVariable Long id,

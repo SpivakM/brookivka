@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,34 +9,33 @@ import {
   Animated,
   Dimensions,
   ActivityIndicator,
+  PermissionsAndroid,
+  AppState,
 } from 'react-native';
 import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect } from 'react-native-svg';
 import {
   Camera,
   useCameraDevice,
   useCameraPermission,
-  useFrameProcessor,
 } from 'react-native-vision-camera';
-import { Worklets } from 'react-native-worklets-core';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { COLORS } from '../../../shared/constants/theme';
-import { API_BASE_URL } from '../../../shared/constants/apiConfig';
+import {
+  matchLandmarkByPhoto,
+  RecognizedLandmark,
+} from '../services/recognitionApi';
 
 interface ARScannerScreenProps {
   navigation?: any;
 }
 
-interface LandmarkDbItem {
-  id: number;
-  name: string;
-  description: string;
-  architectureStyle: string;
-  buildYear: number;
-  photoUrl: string | null;
-  category: string;
-}
-
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const LVIV_FALLBACK_COORDS = {
+  latitude: 49.8418,
+  longitude: 24.0316,
+  accuracy: 600,
+};
 
 const GLOW_SPREAD_X = 120;
 const GLOW_SPREAD_Y = 70;
@@ -96,12 +95,10 @@ const GlowRect: React.FC<{ width: number; height: number }> = ({ width, height }
       </Defs>
 
       <Rect x={sx} y={sy} width={innerW} height={innerH} fill="#000" fillOpacity={GLOW_OPACITY} />
-
       <Rect x={sx} y={0} width={innerW} height={sy} fill="url(#gTop)" />
       <Rect x={sx} y={H - sy} width={innerW} height={sy} fill="url(#gBottom)" />
       <Rect x={0} y={sy} width={sx} height={innerH} fill="url(#gLeft)" />
       <Rect x={W - sx} y={sy} width={sx} height={innerH} fill="url(#gRight)" />
-
       <Rect x={0} y={0} width={sx} height={sy} fill="url(#gTL)" />
       <Rect x={W - sx} y={0} width={sx} height={sy} fill="url(#gTR)" />
       <Rect x={0} y={H - sy} width={sx} height={sy} fill="url(#gBL)" />
@@ -110,81 +107,121 @@ const GlowRect: React.FC<{ width: number; height: number }> = ({ width, height }
   );
 };
 
+function isWithinLviv(lat: number, lng: number): boolean {
+  const dLat = Math.abs(lat - LVIV_FALLBACK_COORDS.latitude);
+  const dLng = Math.abs(lng - LVIV_FALLBACK_COORDS.longitude);
+  return dLat < 0.25 && dLng < 0.35;
+}
+
 export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) => {
-  const [landmark, setLandmark] = useState<LandmarkDbItem | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [landmark, setLandmark] = useState<RecognizedLandmark | null>(null);
+  const [scanning, setScanning] = useState<boolean>(false);
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [glowSize, setGlowSize] = useState<{ w: number; h: number } | null>(null);
-  const [liveFrameStatus, setLiveFrameStatus] = useState<string>('AI Vision: ініціалізація...');
+  const [statusMessage, setStatusMessage] = useState<string>('Ініціалізація камери...');
+  const [confidenceBadge, setConfidenceBadge] = useState<string | null>(null);
+  const [isScreenFocused, setIsScreenFocused] = useState<boolean>(true);
+  const [appActive, setAppActive] = useState<boolean>(AppState.currentState === 'active');
+  const [isCameraReady, setIsCameraReady] = useState<boolean>(false);
 
+  const cameraRef = useRef<Camera>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const frameCounterRef = useRef<number>(0);
+  const pinScaleAnim = useRef(new Animated.Value(0)).current;
+  const coordsRef = useRef(LVIV_FALLBACK_COORDS);
+  const isScanningRef = useRef(false);
+  const isOpenRef = useRef(false);
+  const missCountRef = useRef(0);
 
-  // Vision Camera хуки
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
+
+  const isCameraActive = Boolean(hasPermission && device && isScreenFocused && appActive);
 
   const BUTTON_X = SCREEN_WIDTH * 0.5;
   const BUTTON_Y = SCREEN_HEIGHT * 0.44;
 
-  // Запит дозволу на камеру при відкритті екрана
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      setAppActive(state === 'active');
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (!navigation?.addListener) return;
+    const unsubFocus = navigation.addListener('focus', () => setIsScreenFocused(true));
+    const unsubBlur = navigation.addListener('blur', () => setIsScreenFocused(false));
+    return () => {
+      if (typeof unsubFocus === 'function') unsubFocus();
+      if (typeof unsubBlur === 'function') unsubBlur();
+    };
+  }, [navigation]);
+
+  useEffect(() => {
+    if (!device) {
+      setIsCameraReady(false);
+    }
+  }, [device]);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  useEffect(() => {
+    Animated.spring(pinScaleAnim, {
+      toValue: landmark ? 1 : 0,
+      friction: 6,
+      tension: 90,
+      useNativeDriver: true,
+    }).start();
+  }, [landmark, pinScaleAnim]);
+
   useEffect(() => {
     if (!hasPermission) {
       requestPermission();
     }
-  }, [hasPermission, requestPermission]);
 
-  useEffect(() => {
-    const fetchLandmarkFromDb = async () => {
+    const initLocation = async () => {
       try {
-        setLoading(true);
-        const url = `${API_BASE_URL}/api/landmarks/nearby?lat=49.8418&lng=24.0316&radius=1000`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const list: LandmarkDbItem[] = await res.json();
-          const target = list.find((item) => item.id === 3) || list[0];
-          setLandmark(target || null);
+        if (Platform.OS === 'android') {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            return;
+          }
         }
-      } catch (err) {
-        console.error('ARScanner fetch landmark error:', err);
-      } finally {
-        setLoading(false);
-      }
+
+        const geo = (globalThis as any).navigator?.geolocation;
+        if (geo?.getCurrentPosition) {
+          geo.getCurrentPosition(
+            (pos: any) => {
+              const { latitude, longitude, accuracy } = pos.coords;
+              if (isWithinLviv(latitude, longitude)) {
+                coordsRef.current = {
+                  latitude,
+                  longitude,
+                  accuracy: accuracy || 20,
+                };
+              }
+            },
+            () => {},
+            { enableHighAccuracy: false, timeout: 4000, maximumAge: 30000 },
+          );
+        }
+      } catch {}
     };
 
-    fetchLandmarkFromDb();
-  }, []);
+    initLocation();
+  }, [hasPermission, requestPermission]);
 
-  // JS-колбек, куди прилітають дані про живі кадри з нативного потоку камери
-  const handleLiveFrame = Worklets.createRunOnJS((width: number, height: number) => {
-    frameCounterRef.current += 1;
-    // Оновлюємо статус кожен 30-й кадр (~1 раз на секунду), щоб не навантажувати рендер
-    if (frameCounterRef.current % 30 === 0) {
-      setLiveFrameStatus(`AI Live: ${width}×${height} | кадр #${frameCounterRef.current}`);
-    }
-  });
-
-  // Живий обробник відеопотоку (Frame Processor)
-  const frameProcessor = useFrameProcessor((frame) => {
-    'worklet';
-    handleLiveFrame(frame.width, frame.height);
-  }, [handleLiveFrame]);
-
-  const toggleOverlay = () => {
-    if (isOpen) {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 160,
-        useNativeDriver: true,
-      }).start(() => setIsOpen(false));
-    } else {
-      setIsOpen(true);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
+  const openOverlay = () => {
+    setIsOpen(true);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
   };
 
   const closeOverlay = () => {
@@ -195,10 +232,108 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
     }).start(() => setIsOpen(false));
   };
 
+  const runRecognitionFrame = useCallback(async (manual = false) => {
+    if (
+      isScanningRef.current ||
+      !cameraRef.current ||
+      !isCameraActive ||
+      !isCameraReady
+    ) {
+      return;
+    }
+    if (!manual && isOpenRef.current) return;
+
+    try {
+      isScanningRef.current = true;
+      if (manual) {
+        setScanning(true);
+      }
+
+      const photo = await cameraRef.current.takePhoto({
+        flash: 'off',
+      });
+
+      if (!isCameraActive) return;
+
+      const rawResult: any = await matchLandmarkByPhoto({
+        photoUri: photo.path,
+        latitude: coordsRef.current.latitude,
+        longitude: coordsRef.current.longitude,
+        gpsAccuracyMeters: coordsRef.current.accuracy,
+      });
+
+      const resolvedLandmark: RecognizedLandmark | null =
+        rawResult?.matchedLandmark ?? rawResult?.landmark ?? null;
+      const rawScore: number =
+        rawResult?.bestMatch?.score ?? rawResult?.confidence ?? 0;
+      const pct = Math.round(rawScore * 100);
+
+      if (
+        (rawResult?.status === 'MATCHED' || rawResult?.status === 'UNCERTAIN') &&
+        resolvedLandmark
+      ) {
+        missCountRef.current = 0;
+        setLandmark(resolvedLandmark);
+        setConfidenceBadge(rawResult.status === 'MATCHED' ? `${pct}%` : `~${pct}%`);
+        setStatusMessage(`Знайдено: ${resolvedLandmark.name}`);
+        if (manual) {
+          openOverlay();
+        }
+      } else {
+        missCountRef.current += 1;
+        setStatusMessage('Наведіть камеру на пам’ятку');
+        if (manual || missCountRef.current >= 2) {
+          setLandmark(null);
+          setConfidenceBadge(null);
+        }
+      }
+    } catch (err: any) {
+      const msg = String(err?.message || err);
+      if (msg.includes('Camera is closed') || msg.includes('capture request')) {
+        return;
+      }
+      console.warn('[AR Debug] Error:', msg);
+      setStatusMessage('Немає зв’язку з сервером');
+    } finally {
+      isScanningRef.current = false;
+      if (manual) {
+        setScanning(false);
+      }
+    }
+  }, [isCameraActive, isCameraReady]);
+
+  useEffect(() => {
+    if (!isCameraActive || !isCameraReady) return;
+
+    setStatusMessage('Наведіть камеру на пам’ятку');
+
+    const initialDelay = setTimeout(() => {
+      runRecognitionFrame(false);
+    }, 600);
+
+    const timer = setInterval(() => {
+      runRecognitionFrame(false);
+    }, 2500);
+
+    return () => {
+      clearTimeout(initialDelay);
+      clearInterval(timer);
+    };
+  }, [isCameraActive, isCameraReady, runRecognitionFrame]);
+
+  const handlePinPress = () => {
+    if (!landmark) return;
+    if (isOpen) {
+      closeOverlay();
+    } else {
+      openOverlay();
+    }
+  };
+
   const handleOpenAiGuide = () => {
     if (!landmark) return;
     navigation?.navigate('AIGuide', {
-      landmarkId: landmark.id,
+      landmarkId: String(landmark.id),
       landmarkName: landmark.name,
       initialContext: landmark.description,
     });
@@ -211,15 +346,17 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         {...(Platform.OS === 'android' ? { backgroundColor: COLORS.primaryGreen } : {})}
       />
 
-      {/* Живий потік камери з Vision Camera */}
       <View style={styles.videoContainer}>
         {hasPermission && device ? (
           <Camera
+            ref={cameraRef}
             style={StyleSheet.absoluteFill}
             device={device}
-            isActive={true}
-            frameProcessor={frameProcessor}
-            pixelFormat="yuv"
+            isActive={isCameraActive}
+            photo={true}
+            onInitialized={() => setIsCameraReady(true)}
+            onStarted={() => setIsCameraReady(true)}
+            onError={(e) => setStatusMessage(`Камера: ${e.message}`)}
           />
         ) : (
           <View style={styles.cameraFallback}>
@@ -232,11 +369,27 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
 
       <View style={styles.topHeaderBar} />
 
-      {/* Індикатор живого потоку кадрів для перевірки */}
       <View style={styles.liveBadge} pointerEvents="none">
-        <View style={styles.liveDot} />
-        <Text style={styles.liveBadgeText}>{liveFrameStatus}</Text>
+        <View
+          style={[
+            styles.liveDot,
+            landmark ? styles.liveDotMatched : styles.liveDotScanning,
+          ]}
+        />
+        <Text style={styles.liveBadgeText} numberOfLines={1}>
+          {statusMessage}
+        </Text>
       </View>
+
+      {!landmark && (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.reticleRing,
+            { left: BUTTON_X - 24, top: BUTTON_Y - 24 },
+          ]}
+        />
+      )}
 
       {isOpen && (
         <TouchableOpacity
@@ -282,7 +435,9 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
               <Text style={styles.cardTitle} numberOfLines={1}>
                 {landmark.name}
               </Text>
-              {landmark.buildYear ? (
+              {confidenceBadge ? (
+                <Text style={styles.confidenceText}>{confidenceBadge}</Text>
+              ) : landmark.buildYear ? (
                 <Text style={styles.yearText}>{landmark.buildYear} р.</Text>
               ) : null}
             </View>
@@ -297,35 +452,47 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
             {landmark.architectureStyle ? (
               <Text style={styles.styleText} numberOfLines={1}>
                 {landmark.architectureStyle}
+                {landmark.buildYear ? ` • ${landmark.buildYear} р.` : ''}
               </Text>
             ) : null}
           </View>
         </Animated.View>
       )}
 
-      <View style={[styles.markerContainer, { left: BUTTON_X - 19, top: BUTTON_Y - 19 }]}>
-        <TouchableOpacity
-          onPress={toggleOverlay}
-          activeOpacity={0.8}
+      {landmark && (
+        <Animated.View
           style={[
-            styles.pinButton,
-            isOpen && styles.pinButtonActive,
+            styles.markerContainer,
+            {
+              left: BUTTON_X - 19,
+              top: BUTTON_Y - 19,
+              transform: [{ scale: pinScaleAnim }],
+            },
           ]}
         >
-          {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <View style={styles.churchIconWrapper}>
-              <View style={styles.churchCrossV} />
-              <View style={styles.churchCrossH} />
-              <View style={styles.churchDome} />
-              <View style={styles.churchBase}>
-                <View style={styles.churchDoor} />
+          <TouchableOpacity
+            onPress={handlePinPress}
+            activeOpacity={0.8}
+            style={[
+              styles.pinButton,
+              isOpen && styles.pinButtonActive,
+            ]}
+          >
+            {scanning ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <View style={styles.churchIconWrapper}>
+                <View style={styles.churchCrossV} />
+                <View style={styles.churchCrossH} />
+                <View style={styles.churchDome} />
+                <View style={styles.churchBase}>
+                  <View style={styles.churchDoor} />
+                </View>
               </View>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+      )}
 
       <View style={styles.footerWrapper}>
         <FooterNav
@@ -373,10 +540,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: Platform.OS === 'ios' ? 54 : 34,
     left: 14,
+    right: 14,
     zIndex: 25,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(20, 35, 27, 0.72)',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(20, 35, 27, 0.78)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 12,
@@ -387,13 +556,29 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: '#4ADE80',
     marginRight: 6,
+  },
+  liveDotMatched: {
+    backgroundColor: '#4ADE80',
+  },
+  liveDotScanning: {
+    backgroundColor: '#FBBF24',
   },
   liveBadgeText: {
     color: '#EFE3C3',
     fontSize: 11,
     fontWeight: '600',
+    flexShrink: 1,
+  },
+  reticleRing: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.2,
+    borderColor: 'rgba(239, 227, 195, 0.45)',
+    borderStyle: 'dashed',
+    zIndex: 20,
   },
   dismissArea: {
     position: 'absolute',
@@ -507,6 +692,14 @@ const styles = StyleSheet.create({
   yearText: {
     fontSize: 10,
     color: '#E0A96D',
+    fontWeight: '700',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  confidenceText: {
+    fontSize: 10,
+    color: '#4ADE80',
     fontWeight: '700',
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
     textShadowOffset: { width: 0, height: 1 },

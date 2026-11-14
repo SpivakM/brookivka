@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,38 @@ import {
   StatusBar,
   Platform,
   TouchableOpacity,
+  PermissionsAndroid,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapViewDirections from 'react-native-maps-directions';
+import Geolocation from 'react-native-geolocation-service';
+
 import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { RouteCard, RouteItem } from '../components/RouteCard';
 import { COLORS } from '../../../shared/constants/theme';
 import { useTheme } from '../../../shared/context/ThemeContext';
+import { API_CONFIG } from '../../../config/api.config';
+
+export interface BackendLandmark {
+  id: number;
+  name: string;
+  description: string;
+  fullDescription?: string;
+  architectureStyle?: string;
+  buildYear?: number;
+  photoUrl?: string;
+  category?: string;
+  latitude: number;
+  longitude: number;
+}
+
+interface Coordinate {
+  latitude: number;
+  longitude: number;
+}
 
 const LVIV_INITIAL_REGION = {
   latitude: 49.842957,
@@ -21,6 +46,11 @@ const LVIV_INITIAL_REGION = {
   latitudeDelta: 0.015,
   longitudeDelta: 0.015,
 };
+
+// Базова URL адреса бекенду (Android емулятор бачить localhost ПК як 10.0.2.2)
+const BACKEND_URL =
+  (API_CONFIG as any).baseUrl ||
+  (Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080');
 
 const LVIV_ROUTES: RouteItem[] = [
   {
@@ -79,6 +109,123 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRoutesOpen, setIsRoutesOpen] = useState(false);
 
+  // Дані з бекенду та геолокація
+  const [landmarks, setLandmarks] = useState<BackendLandmark[]>([]);
+  const [isLoadingLandmarks, setIsLoadingLandmarks] = useState(false);
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
+
+  // Власний маршрут користувача
+  const [customWaypoints, setCustomWaypoints] = useState<BackendLandmark[]>([]);
+  const [routeStats, setRouteStats] = useState<{ distance: number; duration: number } | null>(null);
+
+  const mapRef = useRef<MapView>(null);
+
+  // Завантаження пам'яток із Spring Boot бекенду (/api/landmarks/nearby)
+  const fetchNearbyLandmarks = async (lat: number, lng: number, radius = 3000) => {
+    try {
+      setIsLoadingLandmarks(true);
+      const response = await fetch(
+        `${BACKEND_URL}/api/landmarks/nearby?lat=${lat}&lng=${lng}&radius=${radius}`
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data: BackendLandmark[] = await response.json();
+      setLandmarks(data);
+    } catch (error) {
+      console.error('Не вдалося завантажити пам’ятки:', error);
+    } finally {
+      setIsLoadingLandmarks(false);
+    }
+  };
+
+  // Визначення геолокації та початкове завантаження пам'яток
+  useEffect(() => {
+    const initLocationAndData = async () => {
+      let hasPermission = false;
+
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+        );
+        hasPermission = granted === PermissionsAndroid.RESULTS.GRANTED;
+      } else if (Platform.OS === 'ios') {
+        const auth = await Geolocation.requestAuthorization('whenInUse');
+        hasPermission = auth === 'granted';
+      }
+
+      if (hasPermission) {
+        Geolocation.getCurrentPosition(
+          (position) => {
+            const coords = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+            };
+            setUserLocation(coords);
+            fetchNearbyLandmarks(coords.latitude, coords.longitude, 5000);
+          },
+          (error) => {
+            console.warn('Помилка GPS, завантажуємо центр Львова:', error.message);
+            fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+        );
+      } else {
+        // Якщо користувач не дав дозвіл на GPS — все одно показуємо пам'ятки центру Львова
+        fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
+      }
+    };
+
+    initLocationAndData();
+  }, []);
+
+  // Додавання/видалення пам'ятки з власного маршруту при натисканні на маркер
+  const toggleWaypoint = (landmark: BackendLandmark) => {
+    setCustomWaypoints((prev) => {
+      const exists = prev.some((item) => item.id === landmark.id);
+      if (exists) {
+        const updated = prev.filter((item) => item.id !== landmark.id);
+        if (updated.length === 0) setRouteStats(null);
+        return updated;
+      }
+      return [...prev, landmark];
+    });
+  };
+
+  const clearCustomRoute = () => {
+    setCustomWaypoints([]);
+    setRouteStats(null);
+  };
+
+  // Пошук за назвою або категорією пам'ятки з бекенду
+  const filteredLandmarks = landmarks.filter(
+    (item) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  // Координати для побудови маршруту
+  const routeOrigin =
+    userLocation ||
+    (customWaypoints.length > 0
+      ? { latitude: customWaypoints[0].latitude, longitude: customWaypoints[0].longitude }
+      : null);
+
+  const routeDestination =
+    customWaypoints.length > 0
+      ? {
+          latitude: customWaypoints[customWaypoints.length - 1].latitude,
+          longitude: customWaypoints[customWaypoints.length - 1].longitude,
+        }
+      : null;
+
+  const intermediateWaypoints = (
+    userLocation ? customWaypoints.slice(0, -1) : customWaypoints.slice(1, -1)
+  ).map((w) => ({
+    latitude: w.latitude,
+    longitude: w.longitude,
+  }));
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar
@@ -93,17 +240,72 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       <View style={styles.body}>
         <View style={styles.mapContainer}>
           <MapView
-            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+            provider={PROVIDER_GOOGLE}
             style={styles.mapImage}
             initialRegion={LVIV_INITIAL_REGION}
             showsUserLocation={true}
+            showsMyLocationButton={true}
             showsCompass={false}
           >
-            <Marker
-              coordinate={{ latitude: 49.8419, longitude: 24.0297 }}
-              title="Площа Ринок"
-            />
+            {/* Маркери пам'яток, отриманих із бази даних */}
+            {filteredLandmarks.map((landmark) => {
+              const selectedIndex = customWaypoints.findIndex((w) => w.id === landmark.id);
+              const isSelected = selectedIndex !== -1;
+
+              return (
+                <Marker
+                  key={landmark.id.toString()}
+                  coordinate={{
+                    latitude: landmark.latitude,
+                    longitude: landmark.longitude,
+                  }}
+                  title={
+                    isSelected
+                      ? `✅ #${selectedIndex + 1}: ${landmark.name}`
+                      : `${landmark.name}${landmark.buildYear ? ` (${landmark.buildYear})` : ''}`
+                  }
+                  description={landmark.description}
+                  pinColor={isSelected ? '#2E7D32' : '#B8860B'}
+                  onPress={() => toggleWaypoint(landmark)}
+                />
+              );
+            })}
+
+            {/* Прокладання маршруту через Google Directions API */}
+            {routeOrigin && routeDestination && customWaypoints.length > 0 && (
+              <MapViewDirections
+                origin={routeOrigin}
+                destination={routeDestination}
+                waypoints={intermediateWaypoints}
+                apikey={API_CONFIG.googleMapsApiKey}
+                mode="WALKING"
+                strokeWidth={4}
+                strokeColor={COLORS.buttonBrown || '#8B4513'}
+                optimizeWaypoints={true}
+                onReady={(result) => {
+                  setRouteStats({
+                    distance: result.distance,
+                    duration: result.duration,
+                  });
+                  mapRef.current?.fitToCoordinates(result.coordinates, {
+                    edgePadding: { top: 80, right: 40, bottom: 120, left: 40 },
+                    animated: true,
+                  });
+                }}
+                onError={(errorMessage) => {
+                  Alert.alert('Помилка маршруту', errorMessage);
+                }}
+              />
+            )}
           </MapView>
+
+          {/* Індикатор завантаження даних з бекенду */}
+          {isLoadingLandmarks && (
+            <View style={styles.loaderBadge}>
+              <ActivityIndicator size="small" color={COLORS.buttonBrown} />
+              <Text style={styles.loaderText}>Завантаження пам'яток...</Text>
+            </View>
+          )}
 
           {/* Кнопка PICKED ROUTES */}
           <TouchableOpacity
@@ -137,6 +339,26 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
               />
             </View>
           )}
+
+          {/* Нижня панель керування власним маршрутом */}
+          {customWaypoints.length > 0 && (
+            <View style={styles.customRouteBar}>
+              <View style={styles.routeInfo}>
+                <Text style={styles.customRouteTitle}>
+                  Мій маршрут ({customWaypoints.length} точок)
+                </Text>
+                {routeStats && (
+                  <Text style={styles.customRouteSub}>
+                    ~{routeStats.distance.toFixed(1)} км • ~{Math.round(routeStats.duration)} хв пішки
+                  </Text>
+                )}
+              </View>
+
+              <TouchableOpacity style={styles.clearBtn} onPress={clearCustomRoute}>
+                <Text style={styles.clearBtnText}>Очистити</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
       <FooterNav
@@ -165,10 +387,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.borderBronze,
     borderRadius: 16,
     position: 'relative',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    overflow: 'hidden',
   },
   mapImage: {
     width: '100%',
@@ -232,5 +451,69 @@ const styles = StyleSheet.create({
   },
   routesList: {
     gap: 10,
+  },
+  loaderBadge: {
+    position: 'absolute',
+    top: 56,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 240, 225, 0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.borderBronze,
+    gap: 8,
+    elevation: 5,
+  },
+  loaderText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.buttonBrown,
+  },
+  customRouteBar: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    right: 12,
+    backgroundColor: 'rgba(245, 240, 225, 0.96)',
+    borderWidth: 1.5,
+    borderColor: COLORS.borderBronze,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+  },
+  routeInfo: {
+    flex: 1,
+  },
+  customRouteTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.buttonBrown,
+  },
+  customRouteSub: {
+    fontSize: 12,
+    color: '#4A4A4A',
+    marginTop: 2,
+  },
+  clearBtn: {
+    backgroundColor: COLORS.buttonBrown,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  clearBtnText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
