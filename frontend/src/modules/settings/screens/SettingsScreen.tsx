@@ -8,12 +8,12 @@ import {
     TouchableOpacity,
     Switch,
     Linking,
-    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../../../shared/constants/theme';
-import { useTheme } from '../../../shared/context/ThemeContext'; // 1. Імпорт контексту теми
+import { useTheme } from '../../../shared/context/ThemeContext';
+import { useAlert } from '../../../shared/context/AlertContext';
 
 type RecognitionFrequency = 'eco' | 'normal' | 'manual';
 type SearchRadius = 100 | 300 | 500 | 1000;
@@ -22,8 +22,8 @@ export const SettingsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const navigation = useNavigation();
 
-    // 2. Отримуємо поточну тему, функцію її зміни та палітру кольорів
-    const { themeMode, setThemeMode, colors } = useTheme();
+    const { themeMode, themePreference, setThemeMode, colors } = useTheme();
+    const { showAlert } = useAlert();
 
     const [language, setLanguage] = useState<'UK' | 'EN'>('UK');
     const [recognitionFreq, setRecognitionFreq] = useState<RecognitionFrequency>('normal');
@@ -34,7 +34,8 @@ export const SettingsScreen: React.FC = () => {
         try {
             await Linking.openSettings();
         } catch {
-            Alert.alert(
+            showAlert(
+                'error',
                 'Помилка',
                 'Не вдалося відкрити системні налаштування пристрою.'
             );
@@ -50,29 +51,28 @@ export const SettingsScreen: React.FC = () => {
         if (canOpen) {
             await Linking.openURL(url);
         } else {
-            Alert.alert(
+            showAlert(
+                'info',
                 'Підтримка Brookivka',
-                `Напишіть нам на пошту: ${email}`
+                `Напишіть нам на пошту:\n${email}`
             );
         }
     };
 
     const handleRateApp = () => {
-        Alert.alert(
+        showAlert(
+            'info',
             'Оцінити Brookivka',
             'Подобається досліджувати місто з нами? Залиште відгук!',
-            [
-                { text: 'Пізніше', style: 'cancel' },
-                {
-                    text: 'Оцінити',
-                    onPress: () => { },
-                },
-            ]
+            {
+                confirmText: 'Оцінити',
+                cancelText: 'Пізніше',
+                onConfirm: () => { },
+            }
         );
     };
 
     return (
-        // 3. Підставляємо colors.background для фону екрана
         <View style={[styles.container, { backgroundColor: colors.background }]}>
             {/* Кастомна шапка у стилі HeaderNav */}
             <View
@@ -185,7 +185,7 @@ export const SettingsScreen: React.FC = () => {
                                 Тема оформлення
                             </Text>
                             <Text style={[styles.rowDescription, { color: colors.textSecondary }]}>
-                                Світла або темна палітра екранів
+                                Системна, темна або світла палітра
                             </Text>
                         </View>
                         <View
@@ -197,7 +197,24 @@ export const SettingsScreen: React.FC = () => {
                             <TouchableOpacity
                                 style={[
                                     styles.segmentBtn,
-                                    themeMode === 'dark' && styles.segmentBtnActive,
+                                    themePreference === 'system' && styles.segmentBtnActive,
+                                ]}
+                                onPress={() => setThemeMode('system')}
+                            >
+                                <Text
+                                    style={[
+                                        styles.segmentText,
+                                        { color: colors.textSecondary },
+                                        themePreference === 'system' && styles.segmentTextActive,
+                                    ]}
+                                >
+                                    Авто
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.segmentBtn,
+                                    themePreference === 'dark' && styles.segmentBtnActive,
                                 ]}
                                 onPress={() => setThemeMode('dark')}
                             >
@@ -205,7 +222,7 @@ export const SettingsScreen: React.FC = () => {
                                     style={[
                                         styles.segmentText,
                                         { color: colors.textSecondary },
-                                        themeMode === 'dark' && styles.segmentTextActive,
+                                        themePreference === 'dark' && styles.segmentTextActive,
                                     ]}
                                 >
                                     Темна
@@ -214,7 +231,7 @@ export const SettingsScreen: React.FC = () => {
                             <TouchableOpacity
                                 style={[
                                     styles.segmentBtn,
-                                    themeMode === 'light' && styles.segmentBtnActive,
+                                    themePreference === 'light' && styles.segmentBtnActive,
                                 ]}
                                 onPress={() => setThemeMode('light')}
                             >
@@ -222,7 +239,7 @@ export const SettingsScreen: React.FC = () => {
                                     style={[
                                         styles.segmentText,
                                         { color: colors.textSecondary },
-                                        themeMode === 'light' && styles.segmentTextActive,
+                                        themePreference === 'light' && styles.segmentTextActive,
                                     ]}
                                 >
                                     Світла

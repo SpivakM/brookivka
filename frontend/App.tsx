@@ -6,6 +6,7 @@ import { AppNavigator } from './src/navigation/AppNavigator';
 import { AnimatedSplashScreen } from './src/shared/components/AnimatedSplashScreen';
 import { ThemeProvider } from './src/shared/context/ThemeContext';
 import { AuthProvider } from './src/shared/context/AuthContext';
+import { AlertProvider } from './src/shared/context/AlertContext';
 
 export default function App() {
   const [isSplashVisible, setIsSplashVisible] = useState(true);
@@ -14,17 +15,19 @@ export default function App() {
     <SafeAreaProvider>
       <AuthProvider>
         <ThemeProvider>
-          <View style={styles.root}>
-            <NavigationContainer>
-              <AppNavigator />
-            </NavigationContainer>
+          <AlertProvider>
+            <View style={styles.root}>
+              <NavigationContainer>
+                <AppNavigator />
+              </NavigationContainer>
 
-            {isSplashVisible && (
-              <AnimatedSplashScreen
-                onAnimationFinish={() => setIsSplashVisible(false)}
-              />
-            )}
-          </View>
+              {isSplashVisible && (
+                <AnimatedSplashScreen
+                  onAnimationFinish={() => setIsSplashVisible(false)}
+                />
+              )}
+            </View>
+          </AlertProvider>
         </ThemeProvider>
       </AuthProvider>
     </SafeAreaProvider>

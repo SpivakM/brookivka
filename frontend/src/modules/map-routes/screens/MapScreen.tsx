@@ -7,13 +7,11 @@ import {
   StatusBar,
   Platform,
   TouchableOpacity,
-  PermissionsAndroid,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import MapViewDirections from 'react-native-maps-directions';
-import Geolocation from 'react-native-geolocation-service';
 
 import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
 import { FooterNav } from '../../../shared/components/FooterNav';
@@ -35,11 +33,6 @@ export interface BackendLandmark {
   longitude: number;
 }
 
-interface Coordinate {
-  latitude: number;
-  longitude: number;
-}
-
 const LVIV_INITIAL_REGION = {
   latitude: 49.842957,
   longitude: 24.031111,
@@ -48,9 +41,7 @@ const LVIV_INITIAL_REGION = {
 };
 
 // Базова URL адреса бекенду (Android емулятор бачить localhost ПК як 10.0.2.2)
-const BACKEND_URL =
-  (API_CONFIG as any).baseUrl ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080');
+const BACKEND_URL = API_CONFIG.baseUrl;
 
 const LVIV_ROUTES: RouteItem[] = [
   {
@@ -112,7 +103,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   // Дані з бекенду та геолокація
   const [landmarks, setLandmarks] = useState<BackendLandmark[]>([]);
   const [isLoadingLandmarks, setIsLoadingLandmarks] = useState(false);
-  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
 
   // Власний маршрут користувача
   const [customWaypoints, setCustomWaypoints] = useState<BackendLandmark[]>([]);
@@ -139,44 +129,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
     }
   };
 
-  // Визначення геолокації та початкове завантаження пам'яток
+  // Load the fallback area without invoking the native geolocation module.
+  // The module can crash the app on some Android builds after permission approval.
   useEffect(() => {
-    const initLocationAndData = async () => {
-      let hasPermission = false;
-
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-        );
-        hasPermission = granted === PermissionsAndroid.RESULTS.GRANTED;
-      } else if (Platform.OS === 'ios') {
-        const auth = await Geolocation.requestAuthorization('whenInUse');
-        hasPermission = auth === 'granted';
-      }
-
-      if (hasPermission) {
-        Geolocation.getCurrentPosition(
-          (position) => {
-            const coords = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            };
-            setUserLocation(coords);
-            fetchNearbyLandmarks(coords.latitude, coords.longitude, 5000);
-          },
-          (error) => {
-            console.warn('Помилка GPS, завантажуємо центр Львова:', error.message);
-            fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
-          },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-        );
-      } else {
-        // Якщо користувач не дав дозвіл на GPS — все одно показуємо пам'ятки центру Львова
-        fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
-      }
-    };
-
-    initLocationAndData();
+    fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
   }, []);
 
   // Додавання/видалення пам'ятки з власного маршруту при натисканні на маркер
@@ -200,16 +156,21 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   // Пошук за назвою або категорією пам'ятки з бекенду
   const filteredLandmarks = landmarks.filter(
     (item) =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
+      Number.isFinite(item.latitude) &&
+      Number.isFinite(item.longitude) &&
+      item.latitude >= -90 &&
+      item.latitude <= 90 &&
+      item.longitude >= -180 &&
+      item.longitude <= 180 &&
+      ((item.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.category || '').toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // Координати для побудови маршруту
   const routeOrigin =
-    userLocation ||
-    (customWaypoints.length > 0
+    customWaypoints.length > 0
       ? { latitude: customWaypoints[0].latitude, longitude: customWaypoints[0].longitude }
-      : null);
+      : null;
 
   const routeDestination =
     customWaypoints.length > 0
@@ -220,11 +181,13 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       : null;
 
   const intermediateWaypoints = (
-    userLocation ? customWaypoints.slice(0, -1) : customWaypoints.slice(1, -1)
+    customWaypoints.slice(1, -1)
   ).map((w) => ({
     latitude: w.latitude,
     longitude: w.longitude,
   }));
+
+  const canRenderGoogleMap = Platform.OS !== 'android' || Boolean(API_CONFIG.googleMapsApiKey);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -239,65 +202,77 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       />
       <View style={styles.body}>
         <View style={styles.mapContainer}>
-          <MapView
-            provider={PROVIDER_GOOGLE}
-            style={styles.mapImage}
-            initialRegion={LVIV_INITIAL_REGION}
-            showsUserLocation={true}
-            showsMyLocationButton={true}
-            showsCompass={false}
-          >
-            {/* Маркери пам'яток, отриманих із бази даних */}
-            {filteredLandmarks.map((landmark) => {
-              const selectedIndex = customWaypoints.findIndex((w) => w.id === landmark.id);
-              const isSelected = selectedIndex !== -1;
+          {canRenderGoogleMap ? (
+            <MapView
+              ref={mapRef}
+              provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+              style={styles.mapImage}
+              initialRegion={LVIV_INITIAL_REGION}
+              showsCompass={false}
+              onMapReady={() => console.log('[MapScreen] map is ready')}
+            >
+              {/* Маркери пам'яток, отриманих із бази даних */}
+              {filteredLandmarks.map((landmark) => {
+                const selectedIndex = customWaypoints.findIndex((w) => w.id === landmark.id);
+                const isSelected = selectedIndex !== -1;
 
-              return (
-                <Marker
-                  key={landmark.id.toString()}
-                  coordinate={{
-                    latitude: landmark.latitude,
-                    longitude: landmark.longitude,
-                  }}
-                  title={
-                    isSelected
-                      ? `✅ #${selectedIndex + 1}: ${landmark.name}`
-                      : `${landmark.name}${landmark.buildYear ? ` (${landmark.buildYear})` : ''}`
-                  }
-                  description={landmark.description}
-                  pinColor={isSelected ? '#2E7D32' : '#B8860B'}
-                  onPress={() => toggleWaypoint(landmark)}
-                />
-              );
-            })}
+                return (
+                  <Marker
+                    key={landmark.id.toString()}
+                    coordinate={{
+                      latitude: landmark.latitude,
+                      longitude: landmark.longitude,
+                    }}
+                    title={
+                      isSelected
+                        ? `✅ #${selectedIndex + 1}: ${landmark.name}`
+                        : `${landmark.name}${landmark.buildYear ? ` (${landmark.buildYear})` : ''}`
+                    }
+                    description={landmark.description}
+                    pinColor={isSelected ? '#2E7D32' : '#B8860B'}
+                    onPress={() => toggleWaypoint(landmark)}
+                  />
+                );
+              })}
 
-            {/* Прокладання маршруту через Google Directions API */}
-            {routeOrigin && routeDestination && customWaypoints.length > 0 && (
-              <MapViewDirections
-                origin={routeOrigin}
-                destination={routeDestination}
-                waypoints={intermediateWaypoints}
-                apikey={API_CONFIG.googleMapsApiKey}
-                mode="WALKING"
-                strokeWidth={4}
-                strokeColor={COLORS.buttonBrown || '#8B4513'}
-                optimizeWaypoints={true}
-                onReady={(result) => {
-                  setRouteStats({
-                    distance: result.distance,
-                    duration: result.duration,
-                  });
-                  mapRef.current?.fitToCoordinates(result.coordinates, {
-                    edgePadding: { top: 80, right: 40, bottom: 120, left: 40 },
-                    animated: true,
-                  });
-                }}
-                onError={(errorMessage) => {
-                  Alert.alert('Помилка маршруту', errorMessage);
-                }}
-              />
-            )}
-          </MapView>
+              {/* Прокладання маршруту через Google Directions API */}
+              {routeOrigin &&
+                routeDestination &&
+                customWaypoints.length > 1 &&
+                API_CONFIG.googleMapsApiKey && (
+                  <MapViewDirections
+                    origin={routeOrigin}
+                    destination={routeDestination}
+                    waypoints={intermediateWaypoints}
+                    apikey={API_CONFIG.googleMapsApiKey}
+                    mode="WALKING"
+                    strokeWidth={4}
+                    strokeColor={COLORS.buttonBrown || '#8B4513'}
+                    optimizeWaypoints={true}
+                    onReady={(result) => {
+                      setRouteStats({
+                        distance: result.distance,
+                        duration: result.duration,
+                      });
+                      mapRef.current?.fitToCoordinates(result.coordinates, {
+                        edgePadding: { top: 80, right: 40, bottom: 120, left: 40 },
+                        animated: true,
+                      });
+                    }}
+                    onError={(errorMessage) => {
+                      Alert.alert('Помилка маршруту', errorMessage);
+                    }}
+                  />
+                )}
+            </MapView>
+          ) : (
+            <View style={styles.mapUnavailable}>
+              <Text style={styles.mapUnavailableTitle}>Карта недоступна</Text>
+              <Text style={styles.mapUnavailableText}>
+                GOOGLE_MAPS_API_KEY не налаштований у мобільному build env.
+              </Text>
+            </View>
+          )}
 
           {/* Індикатор завантаження даних з бекенду */}
           {isLoadingLandmarks && (
@@ -393,6 +368,31 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 14,
+  },
+  mapUnavailable: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8E1D2',
+    paddingHorizontal: 24,
+  },
+  mapLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8E1D2',
+  },
+  mapUnavailableTitle: {
+    color: COLORS.buttonBrown,
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  mapUnavailableText: {
+    color: '#4A4A4A',
+    fontSize: 13,
+    marginTop: 8,
+    textAlign: 'center',
   },
   routesHeader: {
     position: 'absolute',
