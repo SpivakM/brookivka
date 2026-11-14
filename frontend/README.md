@@ -61,6 +61,10 @@ troubleshooting instructions.
 
 Do not place Groq keys, AWS credentials, or other backend secrets in the mobile application.
 
+Google Maps requires the client key at mobile build time. Set `GOOGLE_MAPS_API_KEY` in the
+frontend build environment (or in an uncommitted `frontend/.env` file) for both Android and iOS.
+The key should be restricted to this app's Android package/SHA-1 and iOS bundle ID.
+
 ## Validation
 
 ```bash

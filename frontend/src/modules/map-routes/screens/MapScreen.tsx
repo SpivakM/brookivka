@@ -48,9 +48,7 @@ const LVIV_INITIAL_REGION = {
 };
 
 // Базова URL адреса бекенду (Android емулятор бачить localhost ПК як 10.0.2.2)
-const BACKEND_URL =
-  (API_CONFIG as any).baseUrl ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:8080' : 'http://localhost:8080');
+const BACKEND_URL = API_CONFIG.baseUrl;
 
 const LVIV_ROUTES: RouteItem[] = [
   {
@@ -240,6 +238,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       <View style={styles.body}>
         <View style={styles.mapContainer}>
           <MapView
+            ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.mapImage}
             initialRegion={LVIV_INITIAL_REGION}
@@ -272,7 +271,10 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
             })}
 
             {/* Прокладання маршруту через Google Directions API */}
-            {routeOrigin && routeDestination && customWaypoints.length > 0 && (
+            {routeOrigin &&
+              routeDestination &&
+              (userLocation || customWaypoints.length > 1) &&
+              API_CONFIG.googleMapsApiKey && (
               <MapViewDirections
                 origin={routeOrigin}
                 destination={routeDestination}
