@@ -233,6 +233,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
     longitude: w.longitude,
   }));
 
+  const canRenderGoogleMap = Platform.OS !== 'android' || Boolean(API_CONFIG.googleMapsApiKey);
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar
@@ -246,70 +248,79 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       />
       <View style={styles.body}>
         <View style={styles.mapContainer}>
-          <MapView
-            ref={mapRef}
-            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-            style={styles.mapImage}
-            initialRegion={LVIV_INITIAL_REGION}
-            showsUserLocation={hasLocationPermission}
-            showsMyLocationButton={hasLocationPermission}
-            showsCompass={false}
-            onMapReady={() => console.log('[MapScreen] map is ready')}
-          >
-            {/* Маркери пам'яток, отриманих із бази даних */}
-            {filteredLandmarks.map((landmark) => {
-              const selectedIndex = customWaypoints.findIndex((w) => w.id === landmark.id);
-              const isSelected = selectedIndex !== -1;
+          {canRenderGoogleMap ? (
+            <MapView
+              ref={mapRef}
+              provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+              style={styles.mapImage}
+              initialRegion={LVIV_INITIAL_REGION}
+              showsUserLocation={hasLocationPermission}
+              showsMyLocationButton={hasLocationPermission}
+              showsCompass={false}
+              onMapReady={() => console.log('[MapScreen] map is ready')}
+            >
+              {/* Маркери пам'яток, отриманих із бази даних */}
+              {filteredLandmarks.map((landmark) => {
+                const selectedIndex = customWaypoints.findIndex((w) => w.id === landmark.id);
+                const isSelected = selectedIndex !== -1;
 
-              return (
-                <Marker
-                  key={landmark.id.toString()}
-                  coordinate={{
-                    latitude: landmark.latitude,
-                    longitude: landmark.longitude,
-                  }}
-                  title={
-                    isSelected
-                      ? `✅ #${selectedIndex + 1}: ${landmark.name}`
-                      : `${landmark.name}${landmark.buildYear ? ` (${landmark.buildYear})` : ''}`
-                  }
-                  description={landmark.description}
-                  pinColor={isSelected ? '#2E7D32' : '#B8860B'}
-                  onPress={() => toggleWaypoint(landmark)}
-                />
-              );
-            })}
+                return (
+                  <Marker
+                    key={landmark.id.toString()}
+                    coordinate={{
+                      latitude: landmark.latitude,
+                      longitude: landmark.longitude,
+                    }}
+                    title={
+                      isSelected
+                        ? `✅ #${selectedIndex + 1}: ${landmark.name}`
+                        : `${landmark.name}${landmark.buildYear ? ` (${landmark.buildYear})` : ''}`
+                    }
+                    description={landmark.description}
+                    pinColor={isSelected ? '#2E7D32' : '#B8860B'}
+                    onPress={() => toggleWaypoint(landmark)}
+                  />
+                );
+              })}
 
-            {/* Прокладання маршруту через Google Directions API */}
-            {routeOrigin &&
-              routeDestination &&
-              (userLocation || customWaypoints.length > 1) &&
-              API_CONFIG.googleMapsApiKey && (
-              <MapViewDirections
-                origin={routeOrigin}
-                destination={routeDestination}
-                waypoints={intermediateWaypoints}
-                apikey={API_CONFIG.googleMapsApiKey}
-                mode="WALKING"
-                strokeWidth={4}
-                strokeColor={COLORS.buttonBrown || '#8B4513'}
-                optimizeWaypoints={true}
-                onReady={(result) => {
-                  setRouteStats({
-                    distance: result.distance,
-                    duration: result.duration,
-                  });
-                  mapRef.current?.fitToCoordinates(result.coordinates, {
-                    edgePadding: { top: 80, right: 40, bottom: 120, left: 40 },
-                    animated: true,
-                  });
-                }}
-                onError={(errorMessage) => {
-                  Alert.alert('Помилка маршруту', errorMessage);
-                }}
-              />
-            )}
-          </MapView>
+              {/* Прокладання маршруту через Google Directions API */}
+              {routeOrigin &&
+                routeDestination &&
+                (userLocation || customWaypoints.length > 1) &&
+                API_CONFIG.googleMapsApiKey && (
+                  <MapViewDirections
+                    origin={routeOrigin}
+                    destination={routeDestination}
+                    waypoints={intermediateWaypoints}
+                    apikey={API_CONFIG.googleMapsApiKey}
+                    mode="WALKING"
+                    strokeWidth={4}
+                    strokeColor={COLORS.buttonBrown || '#8B4513'}
+                    optimizeWaypoints={true}
+                    onReady={(result) => {
+                      setRouteStats({
+                        distance: result.distance,
+                        duration: result.duration,
+                      });
+                      mapRef.current?.fitToCoordinates(result.coordinates, {
+                        edgePadding: { top: 80, right: 40, bottom: 120, left: 40 },
+                        animated: true,
+                      });
+                    }}
+                    onError={(errorMessage) => {
+                      Alert.alert('Помилка маршруту', errorMessage);
+                    }}
+                  />
+                )}
+            </MapView>
+          ) : (
+            <View style={styles.mapUnavailable}>
+              <Text style={styles.mapUnavailableTitle}>Карта недоступна</Text>
+              <Text style={styles.mapUnavailableText}>
+                GOOGLE_MAPS_API_KEY не налаштований у мобільному build env.
+              </Text>
+            </View>
+          )}
 
           {/* Індикатор завантаження даних з бекенду */}
           {isLoadingLandmarks && (
@@ -405,6 +416,25 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 14,
+  },
+  mapUnavailable: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8E1D2',
+    paddingHorizontal: 24,
+  },
+  mapUnavailableTitle: {
+    color: COLORS.buttonBrown,
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  mapUnavailableText: {
+    color: '#4A4A4A',
+    fontSize: 13,
+    marginTop: 8,
+    textAlign: 'center',
   },
   routesHeader: {
     position: 'absolute',
