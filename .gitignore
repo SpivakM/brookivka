@@ -41,6 +41,7 @@ out/
 *.bak
 *.swp
 
+.venv/
 .env
 .env.development
 .env.local
