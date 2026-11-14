@@ -254,6 +254,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
             showsUserLocation={hasLocationPermission}
             showsMyLocationButton={hasLocationPermission}
             showsCompass={false}
+            onMapReady={() => console.log('[MapScreen] map is ready')}
           >
             {/* Маркери пам'яток, отриманих із бази даних */}
             {filteredLandmarks.map((landmark) => {
