@@ -2,7 +2,6 @@ package org.example.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.dto.S3PhotoInfo;
 import org.example.entity.Landmark;
 import org.example.repository.LandmarkRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,6 +30,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class LandmarkMediaService {
+
+    public record S3PhotoInfo(Long landmarkId, String key, String photoUrl) {
+    }
 
     private static final Map<String, String> ALLOWED_CONTENT_TYPES = Map.of(
             "image/jpeg", ".jpg",
