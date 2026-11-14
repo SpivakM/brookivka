@@ -2,6 +2,7 @@ package org.example.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dto.S3PhotoInfo;
 import org.example.entity.Landmark;
 import org.example.repository.LandmarkRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,12 +14,17 @@ import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -113,6 +119,50 @@ public class LandmarkMediaService {
         }
 
         return landmarkRepository.save(landmark);
+    }
+
+    @Transactional
+    public List<S3PhotoInfo> listAllS3LandmarkPhotos() {
+        String cleanCdnBase = normalizeBaseUrl(cdnBaseUrl);
+        ListObjectsV2Request listReq = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .prefix("landmarks/")
+                .build();
+
+        ListObjectsV2Response listRes = s3Client.listObjectsV2(listReq);
+        List<S3PhotoInfo> result = new ArrayList<>();
+        Map<Long, List<String>> photosByLandmark = new HashMap<>();
+
+        for (S3Object obj : listRes.contents()) {
+            String key = obj.key();
+            if (key == null || key.endsWith("/")) {
+                continue;
+            }
+            String[] parts = key.split("/");
+            if (parts.length < 3) {
+                continue;
+            }
+            try {
+                Long landmarkId = Long.parseLong(parts[1]);
+                String fullUrl = cleanCdnBase + "/" + key;
+                result.add(new S3PhotoInfo(landmarkId, key, fullUrl));
+                photosByLandmark.computeIfAbsent(landmarkId, k -> new ArrayList<>()).add(fullUrl);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+
+        for (Map.Entry<Long, List<String>> entry : photosByLandmark.entrySet()) {
+            Optional<Landmark> opt = landmarkRepository.findById(entry.getKey());
+            if (opt.isPresent()) {
+                Landmark landmark = opt.get();
+                if (landmark.getPhotoUrls() == null || landmark.getPhotoUrls().isEmpty()) {
+                    landmark.setPhotoUrls(new ArrayList<>(entry.getValue()));
+                    landmarkRepository.save(landmark);
+                }
+            }
+        }
+
+        return result;
     }
 
     private void deleteFromS3Quietly(String key) {
