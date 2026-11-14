@@ -46,7 +46,6 @@ services:
       - "8090:8090"
     env_file:
       - ./ai-service/.env
-      - ./frontend/.env
     environment:
       - BACKEND_BASE_URL=http://backend:8082
       - API_URL=http://backend:8082
