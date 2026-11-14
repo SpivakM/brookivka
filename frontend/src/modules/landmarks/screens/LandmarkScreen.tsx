@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { LandmarkDetailModal } from '../components/LandmarkDetailModal';
 import {
   View,
   StyleSheet,
@@ -12,6 +13,14 @@ import {
 import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
 import { FooterNav } from '../../../shared/components/FooterNav';
 import { LandmarkCard, Landmark } from '../components/LandmarkCard';
+import { LandmarkFilterModal } from '../components/LandmarkFilterModal';
+import {
+  INITIAL_FILTER_STATE,
+  LandmarkFilterState,
+  applyLandmarkFiltersAndSort,
+  countActiveFilters,
+  extractUniqueTags,
+} from '../utils/landmarkFilters';
 import { COLORS } from '../../../shared/constants/theme';
 import { API_BASE_URL } from '../../../shared/constants/apiConfig';
 import { useTheme } from '../../../shared/context/ThemeContext';
@@ -28,6 +37,9 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
   const [landmarks, setLandmarks] = useState<Landmark[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false);
+  const [filters, setFilters] = useState<LandmarkFilterState>(INITIAL_FILTER_STATE);
+  const [selectedLandmark, setSelectedLandmark] = useState<Landmark | null>(null);
 
   const fetchLandmarks = async () => {
     try {
@@ -58,15 +70,22 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
     fetchLandmarks();
   }, []);
 
-  const filteredLandmarks = landmarks.filter((item) => {
-    const query = searchQuery.toLowerCase();
-    return (
-      item.name.toLowerCase().includes(query) ||
-      item.description.toLowerCase().includes(query) ||
-      (item.category && item.category.toLowerCase().includes(query)) ||
-      (item.architectureStyle && item.architectureStyle.toLowerCase().includes(query))
-    );
-  });
+  const availableCategories = useMemo(
+    () => extractUniqueTags(landmarks, (item) => item.category),
+    [landmarks]
+  );
+
+  const availableStyles = useMemo(
+    () => extractUniqueTags(landmarks, (item) => item.architectureStyle),
+    [landmarks]
+  );
+
+  const filteredLandmarks = useMemo(
+    () => applyLandmarkFiltersAndSort(landmarks, searchQuery, filters),
+    [landmarks, searchQuery, filters]
+  );
+
+  const activeFilterCount = useMemo(() => countActiveFilters(filters), [filters]);
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
@@ -78,6 +97,21 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         placeholder="Search Landmarks..."
+        onFilterPress={() => setIsFilterOpen(true)}
+        activeFilterCount={activeFilterCount}
+      />
+      <LandmarkFilterModal
+        visible={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+        filters={filters}
+        onChangeFilters={setFilters}
+        availableCategories={availableCategories}
+        availableStyles={availableStyles}
+        resultsCount={filteredLandmarks.length}
+      />
+      <LandmarkDetailModal
+        landmark={selectedLandmark}
+        onClose={() => setSelectedLandmark(null)}
       />
       <View style={styles.body}>
         {loading ? (
@@ -97,7 +131,9 @@ export const LandmarksScreen: React.FC<LandmarksScreenProps> = ({ navigation }) 
         ) : (
           <FlatList
             data={filteredLandmarks}
-            renderItem={({ item }) => <LandmarkCard item={item} />}
+            renderItem={({ item }) => (
+              <LandmarkCard item={item} onPress={() => setSelectedLandmark(item)} />
+            )}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={styles.listPadding}
             showsVerticalScrollIndicator={true}

@@ -8,6 +8,7 @@ interface HeaderWithFilterProps {
   onSearchChange: (text: string) => void;
   placeholder?: string;
   onFilterPress?: () => void;
+  activeFilterCount?: number;
 }
 
 export const HeaderWithFilter: React.FC<HeaderWithFilterProps> = ({
@@ -15,6 +16,7 @@ export const HeaderWithFilter: React.FC<HeaderWithFilterProps> = ({
   onSearchChange,
   placeholder = 'Search...',
   onFilterPress,
+  activeFilterCount = 0,
 }) => {
   return (
     <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
@@ -40,6 +42,11 @@ export const HeaderWithFilter: React.FC<HeaderWithFilterProps> = ({
             <View style={[styles.fLine, { width: 10 }]} />
             <View style={[styles.fLine, { width: 6 }]} />
           </View>
+          {activeFilterCount > 0 && (
+            <View style={styles.filterBadge}>
+              <Text style={styles.filterBadgeText}>{activeFilterCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -92,5 +99,24 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: COLORS.white,
     borderRadius: 1,
+  },
+  filterBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#E0D0B0',
+    borderWidth: 1,
+    borderColor: COLORS.primaryGreen,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  filterBadgeText: {
+    color: COLORS.primaryGreen,
+    fontSize: 10,
+    fontWeight: '800',
   },
 });

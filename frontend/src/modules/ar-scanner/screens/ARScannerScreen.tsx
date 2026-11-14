@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,8 +9,9 @@ import {
   Animated,
   Dimensions,
   ActivityIndicator,
+  PanResponder,
 } from 'react-native';
-import Svg, { Defs, LinearGradient, RadialGradient, Stop, Rect } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Path, Rect } from 'react-native-svg';
 import {
   Camera,
   useCameraDevice,
@@ -22,35 +23,21 @@ import { FooterNav } from '../../../shared/components/FooterNav';
 import { COLORS } from '../../../shared/constants/theme';
 import { API_BASE_URL } from '../../../shared/constants/apiConfig';
 import { useAlert } from '../../../shared/context/AlertContext';
+import { LandmarkDetailModal } from '../../landmarks/components/LandmarkDetailModal';
+import { Landmark } from '../../landmarks/components/LandmarkCard';
 
 interface ARScannerScreenProps {
   navigation?: any;
 }
 
-interface LandmarkDbItem {
-  id: number;
-  name: string;
-  description: string;
-  architectureStyle: string;
-  buildYear: number;
-  photoUrl: string | null;
-  category: string;
-}
-
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const GLOW_SPREAD_X = 120;
-const GLOW_SPREAD_Y = 70;
-const GLOW_INNER_INSET = 18;
-const GLOW_OPACITY = 0.5;
+const ARC_RX = Math.round(SCREEN_WIDTH * 0.68);
+const TOP_BAR_HEIGHT = Platform.OS === 'ios' ? 44 : 32;
 
-const GAUSS_K = 3.2;
-const smooth = (x: number) => {
-  const d = 1 - x;
-  const edge = Math.exp(-GAUSS_K);
-  return (Math.exp(-GAUSS_K * d * d) - edge) / (1 - edge);
-};
-const STEPS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+const SWIPE_OPEN_DX = -42;
+const SWIPE_DIAGONAL_DX = -26;
+const SWIPE_DIAGONAL_DY = 26;
 
 const truncate = (text: string, max = 90) => {
   if (!text) return '';
@@ -61,75 +48,87 @@ const truncate = (text: string, max = 90) => {
   return base.replace(/[\s.,;:–-]+$/, '') + '…';
 };
 
-const TEXT_BOTTOM_OFFSET = 34;
-
-const renderStops = (fromInner: boolean) =>
-  STEPS.map((t) => (
-    <Stop
-      key={t}
-      offset={String(t)}
-      stopColor="#000"
-      stopOpacity={GLOW_OPACITY * smooth(fromInner ? 1 - t : t)}
+// Симетрична SVG-іконка храму для кружечка
+const SymmetricChurchIcon: React.FC = () => (
+  <Svg width={23} height={23} viewBox="0 0 24 24" fill="none">
+    {/* Хрест */}
+    <Path
+      d="M12 2.5V6.5M10.2 4.3H13.8"
+      stroke="#FFFFFF"
+      strokeWidth={1.9}
+      strokeLinecap="round"
     />
-  ));
+    {/* Купол */}
+    <Path
+      d="M7.5 11.5C7.5 8.8 9.5 6.8 12 6.8C14.5 6.8 16.5 8.8 16.5 11.5H7.5Z"
+      fill="#FFFFFF"
+    />
+    {/* Основа будівлі */}
+    <Rect x={5.5} y={12.3} width={13} height={8.2} rx={1.2} fill="#FFFFFF" />
+    {/* Симетричні арочні двері */}
+    <Path
+      d="M10.1 20.5V16.7C10.1 15.65 10.95 14.8 12 14.8C13.05 14.8 13.9 15.65 13.9 16.7V20.5H10.1Z"
+      fill={COLORS.primaryGreen}
+    />
+  </Svg>
+);
 
-const GlowRect: React.FC<{ width: number; height: number }> = ({ width, height }) => {
-  const W = Math.round(width);
-  const H = Math.round(height);
-  const sx = GLOW_SPREAD_X + GLOW_INNER_INSET;
-  const sy = GLOW_SPREAD_Y + GLOW_INNER_INSET;
-  const innerW = W - sx * 2;
-  const innerH = H - sy * 2;
-  if (innerW <= 0 || innerH <= 0) return null;
-
-  return (
-    <Svg width={W} height={H}>
-      <Defs>
-        <LinearGradient id="gTop" x1="0" y1="0" x2="0" y2="1">{renderStops(false)}</LinearGradient>
-        <LinearGradient id="gBottom" x1="0" y1="1" x2="0" y2="0">{renderStops(false)}</LinearGradient>
-        <LinearGradient id="gLeft" x1="0" y1="0" x2="1" y2="0">{renderStops(false)}</LinearGradient>
-        <LinearGradient id="gRight" x1="1" y1="0" x2="0" y2="0">{renderStops(false)}</LinearGradient>
-
-        <RadialGradient id="gTL" cx="100%" cy="100%" rx="100%" ry="100%" fx="100%" fy="100%">{renderStops(true)}</RadialGradient>
-        <RadialGradient id="gTR" cx="0%" cy="100%" rx="100%" ry="100%" fx="0%" fy="100%">{renderStops(true)}</RadialGradient>
-        <RadialGradient id="gBL" cx="100%" cy="0%" rx="100%" ry="100%" fx="100%" fy="0%">{renderStops(true)}</RadialGradient>
-        <RadialGradient id="gBR" cx="0%" cy="0%" rx="100%" ry="100%" fx="0%" fy="0%">{renderStops(true)}</RadialGradient>
-      </Defs>
-
-      <Rect x={sx} y={sy} width={innerW} height={innerH} fill="#000" fillOpacity={GLOW_OPACITY} />
-
-      <Rect x={sx} y={0} width={innerW} height={sy} fill="url(#gTop)" />
-      <Rect x={sx} y={H - sy} width={innerW} height={sy} fill="url(#gBottom)" />
-      <Rect x={0} y={sy} width={sx} height={innerH} fill="url(#gLeft)" />
-      <Rect x={W - sx} y={sy} width={sx} height={innerH} fill="url(#gRight)" />
-
-      <Rect x={0} y={0} width={sx} height={sy} fill="url(#gTL)" />
-      <Rect x={W - sx} y={0} width={sx} height={sy} fill="url(#gTR)" />
-      <Rect x={0} y={H - sy} width={sx} height={sy} fill="url(#gBL)" />
-      <Rect x={W - sx} y={H - sy} width={sx} height={sy} fill="url(#gBR)" />
-    </Svg>
-  );
-};
+// Дугоподібне затемнення від правого верхнього кута, що підлаштовується під висоту тексту
+const CornerArcShadow: React.FC<{ rx: number; ry: number }> = ({ rx, ry }) => (
+  <Svg width={rx} height={ry} viewBox={`0 0 ${rx} ${ry}`}>
+    <Defs>
+      <RadialGradient
+        id="cornerArcGrad"
+        cx="100%"
+        cy="0%"
+        rx="100%"
+        ry="100%"
+        fx="100%"
+        fy="0%"
+      >
+        <Stop offset="0%" stopColor="#070D0A" stopOpacity={0.70} />
+        <Stop offset="48%" stopColor="#0A120E" stopOpacity={0.60} />
+        <Stop offset="76%" stopColor="#0A120E" stopOpacity={0.35} />
+        <Stop offset="100%" stopColor="#0A120E" stopOpacity={0} />
+      </RadialGradient>
+    </Defs>
+    {/* Сектор овальної дуги від правого верхнього кута (rx, 0) */}
+    <Path
+      d={`M ${rx} 0 L 0 0 A ${rx} ${ry} 0 0 0 ${rx} ${ry} Z`}
+      fill="url(#cornerArcGrad)"
+    />
+  </Svg>
+);
 
 export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) => {
   const { showAlert } = useAlert();
-  const [landmark, setLandmark] = useState<LandmarkDbItem | null>(null);
+  const [landmark, setLandmark] = useState<Landmark | null>(null);
+  const [detailLandmark, setDetailLandmark] = useState<Landmark | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isOpen, setIsOpen] = useState<boolean>(false);
-  const [glowSize, setGlowSize] = useState<{ w: number; h: number } | null>(null);
+  const [contentHeight, setContentHeight] = useState<number>(0);
   const [liveFrameStatus, setLiveFrameStatus] = useState<string>('AI Vision: ініціалізація...');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const swipeOffset = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const frameCounterRef = useRef<number>(0);
+  const landmarkRef = useRef<Landmark | null>(null);
+  landmarkRef.current = landmark;
 
-  // Vision Camera хуки
+  // Vision Camera хуки (НЕ ЗМІНЮВАЛИСЬ)
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
 
   const BUTTON_X = SCREEN_WIDTH * 0.5;
   const BUTTON_Y = SCREEN_HEIGHT * 0.44;
 
-  // Запит дозволу на камеру при відкритті екрана
+  // Динамічний розрахунок висоти овалу на основі розміру тексту
+  const dynamicRy =
+    contentHeight > 0
+      ? Math.max(Math.round(contentHeight * 1.52), Math.round(SCREEN_WIDTH * 0.65))
+      : Math.round(SCREEN_WIDTH * 0.98);
+
+  // Запит дозволу на камеру при відкритті екрана (НЕ ЗМІНЮВАЛОСЬ)
   useEffect(() => {
     if (!hasPermission) {
       requestPermission();
@@ -143,8 +142,9 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         const url = `${API_BASE_URL}/api/landmarks/nearby?lat=49.8418&lng=24.0316&radius=1000`;
         const res = await fetch(url);
         if (res.ok) {
-          const list: LandmarkDbItem[] = await res.json();
-          const target = list.find((item) => item.id === 3) || list[0];
+          const list: Landmark[] = await res.json();
+          const target =
+            list.find((item) => item.name?.toLowerCase().includes('боїм')) || list[0];
           setLandmark(target || null);
         } else {
           showAlert(
@@ -168,16 +168,15 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
     fetchLandmarkFromDb();
   }, [showAlert]);
 
-  // JS-колбек, куди прилітають дані про живі кадри з нативного потоку камери
+  // JS-колбек, куди прилітають дані про живі кадри з нативного потоку камери (НЕ ЗМІНЮВАЛОСЬ)
   const handleLiveFrame = Worklets.createRunOnJS((width: number, height: number) => {
     frameCounterRef.current += 1;
-    // Оновлюємо статус кожен 30-й кадр (~1 раз на секунду), щоб не навантажувати рендер
     if (frameCounterRef.current % 30 === 0) {
       setLiveFrameStatus(`AI Live: ${width}×${height} | кадр #${frameCounterRef.current}`);
     }
   });
 
-  // Живий обробник відеопотоку (Frame Processor)
+  // Живий обробник відеопотоку (Frame Processor) (НЕ ЗМІНЮВАЛОСЬ)
   const frameProcessor = useFrameProcessor((frame) => {
     'worklet';
     handleLiveFrame(frame.width, frame.height);
@@ -187,14 +186,15 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
     if (isOpen) {
       Animated.timing(fadeAnim, {
         toValue: 0,
-        duration: 160,
+        duration: 180,
         useNativeDriver: true,
       }).start(() => setIsOpen(false));
     } else {
+      swipeOffset.setValue({ x: 0, y: 0 });
       setIsOpen(true);
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 200,
+        duration: 220,
         useNativeDriver: true,
       }).start();
     }
@@ -203,19 +203,70 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
   const closeOverlay = () => {
     Animated.timing(fadeAnim, {
       toValue: 0,
-      duration: 160,
+      duration: 180,
       useNativeDriver: true,
-    }).start(() => setIsOpen(false));
-  };
-
-  const handleOpenAiGuide = () => {
-    if (!landmark) return;
-    navigation?.navigate('AIGuide', {
-      landmarkId: landmark.id,
-      landmarkName: landmark.name,
-      initialContext: landmark.description,
+    }).start(() => {
+      swipeOffset.setValue({ x: 0, y: 0 });
+      setIsOpen(false);
     });
   };
+
+  const openLandmarkDetails = useCallback(() => {
+    const current = landmarkRef.current;
+    if (!current) return;
+
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(swipeOffset, {
+        toValue: { x: -45, y: 20 },
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setIsOpen(false);
+      swipeOffset.setValue({ x: 0, y: 0 });
+      setDetailLandmark(current);
+    });
+  }, [fadeAnim, swipeOffset]);
+
+  const openLandmarkDetailsRef = useRef(openLandmarkDetails);
+  openLandmarkDetailsRef.current = openLandmarkDetails;
+
+  const arcPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const isLeftSwipe = gestureState.dx < -8;
+        const isDiagonalLeftDown = gestureState.dx < -6 && gestureState.dy > 6;
+        return isLeftSwipe || isDiagonalLeftDown;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const clampedX = Math.min(0, Math.max(-70, gestureState.dx * 0.45));
+        const clampedY = Math.max(0, Math.min(45, gestureState.dy * 0.35));
+        swipeOffset.setValue({ x: clampedX, y: clampedY });
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const triggeredLeft =
+          gestureState.dx <= SWIPE_OPEN_DX || gestureState.vx <= -0.45;
+        const triggeredDiagonal =
+          gestureState.dx <= SWIPE_DIAGONAL_DX && gestureState.dy >= SWIPE_DIAGONAL_DY;
+
+        if (triggeredLeft || triggeredDiagonal) {
+          openLandmarkDetailsRef.current();
+        } else {
+          Animated.spring(swipeOffset, {
+            toValue: { x: 0, y: 0 },
+            damping: 20,
+            stiffness: 220,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
 
   return (
     <View style={styles.root}>
@@ -224,7 +275,7 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         {...(Platform.OS === 'android' ? { backgroundColor: COLORS.primaryGreen } : {})}
       />
 
-      {/* Живий потік камери з Vision Camera */}
+      {/* Живий потік камери з Vision Camera (НЕ ЗМІНЮВАЛОСЬ) */}
       <View style={styles.videoContainer}>
         {hasPermission && device ? (
           <Camera
@@ -259,60 +310,87 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
         />
       )}
 
+      {/* Дугоподібна плашка у правому верхньому куті з динамічною висотою та підтримкою свайпу */}
       {isOpen && landmark && (
         <Animated.View
+          {...arcPanResponder.panHandlers}
+          pointerEvents="box-none"
           style={[
-            styles.textContainer,
+            styles.arcOverlayContainer,
             {
-              bottom: SCREEN_HEIGHT - BUTTON_Y + TEXT_BOTTOM_OFFSET,
+              top: TOP_BAR_HEIGHT,
+              width: ARC_RX,
               opacity: fadeAnim,
-              transform: [
-                {
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [6, 0],
-                  }),
-                },
-              ],
             },
           ]}
         >
-          <View
-            style={styles.glowLayer}
+          {/* Затемнення завжди приклеєне до правого верхнього кута і не відривається при свайпі */}
+          <Animated.View
+            style={[
+              styles.shadowWrapper,
+              {
+                transform: [
+                  { translateX: ARC_RX / 2 },
+                  { translateY: -dynamicRy / 2 },
+                  {
+                    scale: swipeOffset.x.interpolate({
+                      inputRange: [-70, 0],
+                      outputRange: [1.14, 1],
+                      extrapolate: 'clamp',
+                    }),
+                  },
+                  { translateX: -ARC_RX / 2 },
+                  { translateY: dynamicRy / 2 },
+                ],
+              },
+            ]}
             pointerEvents="none"
-            onLayout={(e) =>
-              setGlowSize({
-                w: e.nativeEvent.layout.width,
-                h: e.nativeEvent.layout.height,
-              })
-            }
           >
-            {glowSize ? <GlowRect width={glowSize.w} height={glowSize.h} /> : null}
-          </View>
+            <CornerArcShadow rx={ARC_RX} ry={dynamicRy} />
+          </Animated.View>
 
-          <View style={styles.textContent}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardTitle} numberOfLines={1}>
-                {landmark.name}
-              </Text>
-              {landmark.buildYear ? (
-                <Text style={styles.yearText}>{landmark.buildYear} р.</Text>
-              ) : null}
-            </View>
-
-            <Text style={styles.cardDescription}>
-              {truncate(landmark.description)}{' '}
-              <Text style={styles.aiLinkText} onPress={handleOpenAiGuide}>
-                Дізнатися більше...
-              </Text>
+          {/* Зсувається за пальцем лише текстовий блок */}
+          <Animated.View
+            style={[
+              styles.arcTextContent,
+              {
+                opacity: swipeOffset.x.interpolate({
+                  inputRange: [-65, 0],
+                  outputRange: [0.35, 1],
+                  extrapolate: 'clamp',
+                }),
+                transform: [
+                  { translateX: swipeOffset.x },
+                  { translateY: swipeOffset.y },
+                ],
+              },
+            ]}
+            onLayout={(e) => setContentHeight(e.nativeEvent.layout.height)}
+          >
+            {/* 1. Назва пам'ятки */}
+            <Text style={styles.cardTitle} numberOfLines={2}>
+              {landmark.name}
             </Text>
 
-            {landmark.architectureStyle ? (
-              <Text style={styles.styleText} numberOfLines={1}>
-                {landmark.architectureStyle}
+            {/* 2. Дата та стиль під назвою */}
+            {(landmark.buildYear || landmark.architectureStyle) && (
+              <Text style={styles.metaText} numberOfLines={2}>
+                {landmark.buildYear ? `${landmark.buildYear} р.` : ''}
+                {landmark.buildYear && landmark.architectureStyle ? ' • ' : ''}
+                {landmark.architectureStyle || ''}
               </Text>
-            ) : null}
-          </View>
+            )}
+
+            {/* 3. Опис уздовж дуги */}
+            <View style={styles.descriptionArcWrapper}>
+              <Text style={styles.cardDescription}>
+                {truncate(landmark.description)}{' '}
+                <Text style={styles.aiLinkText} onPress={openLandmarkDetails}>
+                  Дізнатися більше...
+                </Text>
+              </Text>
+            </View>
+          </Animated.View>
         </Animated.View>
       )}
 
@@ -328,14 +406,7 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <View style={styles.churchIconWrapper}>
-              <View style={styles.churchCrossV} />
-              <View style={styles.churchCrossH} />
-              <View style={styles.churchDome} />
-              <View style={styles.churchBase}>
-                <View style={styles.churchDoor} />
-              </View>
-            </View>
+            <SymmetricChurchIcon />
           )}
         </TouchableOpacity>
       </View>
@@ -349,6 +420,11 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
           rightTabTarget="Map"
         />
       </View>
+
+      <LandmarkDetailModal
+        landmark={detailLandmark}
+        onClose={() => setDetailLandmark(null)}
+      />
     </View>
   );
 };
@@ -377,7 +453,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   topHeaderBar: {
-    height: Platform.OS === 'ios' ? 44 : 24,
+    height: TOP_BAR_HEIGHT,
     backgroundColor: COLORS.primaryGreen,
     width: '100%',
     zIndex: 10,
@@ -440,111 +516,66 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E3328',
     transform: [{ scale: 1.08 }],
   },
-  churchIconWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 20,
-    height: 20,
-  },
-  churchCrossV: {
-    width: 1.6,
-    height: 4,
-    backgroundColor: '#FFFFFF',
-  },
-  churchCrossH: {
+  arcOverlayContainer: {
     position: 'absolute',
-    top: 1.2,
-    width: 4.5,
-    height: 1.4,
-    backgroundColor: '#FFFFFF',
-  },
-  churchDome: {
-    width: 9,
-    height: 6,
-    borderTopLeftRadius: 5,
-    borderTopRightRadius: 5,
-    backgroundColor: '#FFFFFF',
-    marginTop: 0.5,
-  },
-  churchBase: {
-    width: 13,
-    height: 7.5,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 1,
-    borderTopRightRadius: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  churchDoor: {
-    width: 4,
-    height: 4.5,
-    backgroundColor: COLORS.primaryGreen,
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
-  },
-  textContainer: {
-    position: 'absolute',
-    alignSelf: 'center',
-    width: '68%',
-    maxWidth: 225,
+    right: 0,
     zIndex: 30,
+    alignItems: 'flex-end',
   },
-  glowLayer: {
+  shadowWrapper: {
     position: 'absolute',
-    top: -GLOW_SPREAD_Y,
-    bottom: -GLOW_SPREAD_Y,
-    left: -GLOW_SPREAD_X,
-    right: -GLOW_SPREAD_X,
+    top: 0,
+    right: 0,
   },
-  textContent: {
+  arcTextContent: {
     width: '100%',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
+    paddingTop: 16,
+    paddingRight: 16,
+    paddingLeft: '22%',
+    alignItems: 'flex-end',
   },
   cardTitle: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 17.5,
+    fontWeight: '800',
     color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.95)',
+    textAlign: 'right',
+    lineHeight: 21,
+    letterSpacing: 0.2,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.92)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-    flex: 1,
-    marginRight: 6,
+    textShadowRadius: 5,
   },
-  yearText: {
-    fontSize: 10,
-    color: '#E0A96D',
+  metaText: {
+    fontSize: 11.5,
     fontWeight: '700',
+    color: '#E6B673',
+    textAlign: 'right',
+    lineHeight: 15,
+    marginBottom: 10,
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textShadowRadius: 4,
+  },
+  descriptionArcWrapper: {
+    width: '100%',
+    paddingLeft: '14%',
   },
   cardDescription: {
-    fontSize: 11,
-    color: '#F0F0F0',
-    lineHeight: 14,
-    marginBottom: 4,
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#F2EFE8',
+    textAlign: 'right',
+    lineHeight: 16.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.92)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
-  styleText: {
-    fontSize: 9.5,
-    color: '#C5D0C9',
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
   aiLinkText: {
-    color: '#FFD39B',
+    color: '#FFD599',
     fontWeight: '700',
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textDecorationLine: 'underline',
+    textShadowColor: 'rgba(0, 0, 0, 0.92)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },

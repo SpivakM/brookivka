@@ -7,6 +7,7 @@ export type Landmark = {
   id: number;
   name: string;
   description: string;
+  fullDescription?: string | null;
   architectureStyle?: string | null;
   buildYear?: number | null;
   photoUrl?: string | null;
