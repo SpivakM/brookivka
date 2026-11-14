@@ -111,6 +111,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   const [landmarks, setLandmarks] = useState<BackendLandmark[]>([]);
   const [isLoadingLandmarks, setIsLoadingLandmarks] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
+  const [hasLocationPermission, setHasLocationPermission] = useState(false);
 
   // Власний маршрут користувача
   const [customWaypoints, setCustomWaypoints] = useState<BackendLandmark[]>([]);
@@ -151,6 +152,8 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
         const auth = await Geolocation.requestAuthorization('whenInUse');
         hasPermission = auth === 'granted';
       }
+
+      setHasLocationPermission(hasPermission);
 
       if (hasPermission) {
         Geolocation.getCurrentPosition(
@@ -198,8 +201,14 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   // Пошук за назвою або категорією пам'ятки з бекенду
   const filteredLandmarks = landmarks.filter(
     (item) =>
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
+      Number.isFinite(item.latitude) &&
+      Number.isFinite(item.longitude) &&
+      item.latitude >= -90 &&
+      item.latitude <= 90 &&
+      item.longitude >= -180 &&
+      item.longitude <= 180 &&
+      ((item.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.category || '').toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   // Координати для побудови маршруту
@@ -239,11 +248,11 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
         <View style={styles.mapContainer}>
           <MapView
             ref={mapRef}
-            provider={PROVIDER_GOOGLE}
+            provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
             style={styles.mapImage}
             initialRegion={LVIV_INITIAL_REGION}
-            showsUserLocation={true}
-            showsMyLocationButton={true}
+            showsUserLocation={hasLocationPermission}
+            showsMyLocationButton={hasLocationPermission}
             showsCompass={false}
           >
             {/* Маркери пам'яток, отриманих із бази даних */}
