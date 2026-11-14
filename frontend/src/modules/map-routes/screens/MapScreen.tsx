@@ -112,6 +112,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   const [isLoadingLandmarks, setIsLoadingLandmarks] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
+  const [isLocationInitialized, setIsLocationInitialized] = useState(false);
 
   // Власний маршрут користувача
   const [customWaypoints, setCustomWaypoints] = useState<BackendLandmark[]>([]);
@@ -143,34 +144,53 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
     const initLocationAndData = async () => {
       let hasPermission = false;
 
-      if (Platform.OS === 'android') {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
-        );
-        hasPermission = granted === PermissionsAndroid.RESULTS.GRANTED;
-      } else if (Platform.OS === 'ios') {
-        const auth = await Geolocation.requestAuthorization('whenInUse');
-        hasPermission = auth === 'granted';
+      try {
+        if (Platform.OS === 'android') {
+          const permissions = await PermissionsAndroid.requestMultiple([
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+            PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+          ]);
+          hasPermission =
+            permissions[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] ===
+              PermissionsAndroid.RESULTS.GRANTED ||
+            permissions[PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION] ===
+              PermissionsAndroid.RESULTS.GRANTED;
+        } else if (Platform.OS === 'ios') {
+          const auth = await Geolocation.requestAuthorization('whenInUse');
+          hasPermission = auth === 'granted';
+        }
+      } catch (error) {
+        console.warn('Не вдалося отримати дозвіл на геолокацію:', error);
       }
 
       setHasLocationPermission(hasPermission);
+      setIsLocationInitialized(true);
 
       if (hasPermission) {
-        Geolocation.getCurrentPosition(
-          (position) => {
-            const coords = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            };
-            setUserLocation(coords);
-            fetchNearbyLandmarks(coords.latitude, coords.longitude, 5000);
-          },
-          (error) => {
-            console.warn('Помилка GPS, завантажуємо центр Львова:', error.message);
-            fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
-          },
-          { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-        );
+        try {
+          Geolocation.getCurrentPosition(
+            (position) => {
+              const coords = {
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+              };
+              setUserLocation(coords);
+              fetchNearbyLandmarks(coords.latitude, coords.longitude, 5000);
+            },
+            (error) => {
+              console.warn('Помилка GPS, завантажуємо центр Львова:', error.message);
+              fetchNearbyLandmarks(
+                LVIV_INITIAL_REGION.latitude,
+                LVIV_INITIAL_REGION.longitude,
+                3000
+              );
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+          );
+        } catch (error) {
+          console.warn('Не вдалося отримати поточне місце:', error);
+          fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
+        }
       } else {
         // Якщо користувач не дав дозвіл на GPS — все одно показуємо пам'ятки центру Львова
         fetchNearbyLandmarks(LVIV_INITIAL_REGION.latitude, LVIV_INITIAL_REGION.longitude, 3000);
@@ -248,14 +268,18 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       />
       <View style={styles.body}>
         <View style={styles.mapContainer}>
-          {canRenderGoogleMap ? (
+          {!isLocationInitialized ? (
+            <View style={styles.mapLoading}>
+              <ActivityIndicator size="large" color={COLORS.buttonBrown} />
+            </View>
+          ) : canRenderGoogleMap ? (
             <MapView
               ref={mapRef}
               provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
               style={styles.mapImage}
               initialRegion={LVIV_INITIAL_REGION}
-              showsUserLocation={hasLocationPermission}
-              showsMyLocationButton={hasLocationPermission}
+              showsUserLocation={hasLocationPermission && userLocation !== null}
+              showsMyLocationButton={hasLocationPermission && userLocation !== null}
               showsCompass={false}
               onMapReady={() => console.log('[MapScreen] map is ready')}
             >
@@ -423,6 +447,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#E8E1D2',
     paddingHorizontal: 24,
+  },
+  mapLoading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8E1D2',
   },
   mapUnavailableTitle: {
     color: COLORS.buttonBrown,
