@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -132,7 +133,7 @@ public class LandmarkMediaService {
 
         ListObjectsV2Response listRes = s3Client.listObjectsV2(listReq);
         List<S3PhotoInfo> result = new ArrayList<>();
-        Map<Long, String> firstPhotoByLandmark = new HashMap<>();
+        Map<Long, List<String>> photosByLandmark = new HashMap<>();
 
         for (S3Object obj : listRes.contents()) {
             String key = obj.key();
@@ -147,17 +148,17 @@ public class LandmarkMediaService {
                 Long landmarkId = Long.parseLong(parts[1]);
                 String fullUrl = cleanCdnBase + "/" + key;
                 result.add(new S3PhotoInfo(landmarkId, key, fullUrl));
-                firstPhotoByLandmark.putIfAbsent(landmarkId, fullUrl);
+                photosByLandmark.computeIfAbsent(landmarkId, k -> new ArrayList<>()).add(fullUrl);
             } catch (NumberFormatException ignored) {
             }
         }
 
-        for (Map.Entry<Long, String> entry : firstPhotoByLandmark.entrySet()) {
+        for (Map.Entry<Long, List<String>> entry : photosByLandmark.entrySet()) {
             Optional<Landmark> opt = landmarkRepository.findById(entry.getKey());
             if (opt.isPresent()) {
                 Landmark landmark = opt.get();
-                if (landmark.getPhotoUrl() == null || landmark.getPhotoUrl().isBlank()) {
-                    landmark.setPhotoUrl(entry.getValue());
+                if (landmark.getPhotoUrls() == null || landmark.getPhotoUrls().isEmpty()) {
+                    landmark.setPhotoUrls(new ArrayList<>(entry.getValue()));
                     landmarkRepository.save(landmark);
                 }
             }
