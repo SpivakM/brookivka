@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,7 +28,16 @@ class Settings(BaseSettings):
     match_threshold: float = 0.72
     match_margin_threshold: float = 0.07
 
+    api_url: Optional[str] = None
     backend_base_url: str = "http://backend:8082"
+
+    # @property
+    # def effective_backend_url(self) -> str:
+    #     return (self.api_url or self.backend_base_url).rstrip("/")
+    
+    @property
+    def effective_backend_url(self) -> str:
+        return self.backend_base_url.rstrip("/")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
