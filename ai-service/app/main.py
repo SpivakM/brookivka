@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import os
 import time
 import uuid
@@ -7,7 +8,7 @@ from typing import Dict, List, Optional, Tuple
 
 import faiss
 import numpy as np
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 
@@ -15,6 +16,9 @@ from app.config import settings
 from app.detector import ObjectDetector
 from app.embedder import DinoEmbedder
 from app.reranker import GeoCandidate, ScoredCandidate, rerank_candidates
+from app.s3_indexer import build_index_from_backend_s3
+
+logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(title="Brookivka AI Recognition Service", version=settings.model_version)
 
@@ -52,6 +56,15 @@ def startup_event() -> None:
     embedder = DinoEmbedder()
     load_faiss_index()
 
+    # Якщо індекс порожній або ще не створений — автоматично підтягуємо фото з S3 через бекенд
+    if faiss_index is None or faiss_index.ntotal == 0:
+        try:
+            summary = build_index_from_backend_s3(detector, embedder)
+            load_faiss_index()
+            logger.info("Auto-synced FAISS index from S3: %s", summary)
+        except Exception as exc:
+            logger.warning("Initial S3 index sync skipped: %s", exc)
+
 
 @app.get("/health")
 def health() -> dict:
@@ -74,6 +87,18 @@ def ready() -> dict:
 def reload_index() -> dict:
     load_faiss_index()
     return {"reloaded": True, "indexedViews": len(index_metadata)}
+
+
+@app.post("/index/sync-s3")
+def sync_index_from_s3(backend_url: Optional[str] = Query(default=None)) -> dict:
+    if detector is None or embedder is None:
+        raise HTTPException(status_code=503, detail="AI models not initialized")
+    try:
+        summary = build_index_from_backend_s3(detector, embedder, backend_url=backend_url)
+        load_faiss_index()
+        return {"synced": True, **summary}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Failed to sync index from S3: {exc}")
 
 
 @app.post("/recognition/match", response_model=RecognitionResponse)
@@ -106,7 +131,6 @@ async def match_landmark(
     except UnidentifiedImageError:
         raise HTTPException(status_code=400, detail="Unsupported or corrupted image")
 
-    # Масштабуємо надто великі кадри до MAX_IMAGE_WIDTH / MAX_IMAGE_HEIGHT
     if pil_img.width > settings.max_image_width or pil_img.height > settings.max_image_height:
         pil_img.thumbnail((settings.max_image_width, settings.max_image_height), Image.Resampling.LANCZOS)
 
@@ -115,6 +139,14 @@ async def match_landmark(
         geo_candidates = [GeoCandidate(**item) for item in raw_candidates]
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid candidatesJson: {exc}")
+
+    # Якщо індекс ще порожній при першому запиті — пробуємо підтягнути його автоматично
+    if (faiss_index is None or faiss_index.ntotal == 0) and geo_candidates:
+        try:
+            build_index_from_backend_s3(detector, embedder)
+            load_faiss_index()
+        except Exception as exc:
+            logger.warning("Lazy S3 index sync failed: %s", exc)
 
     # 1. Детекція об'єкта та ROI cropping
     roi_img, detection_fallback, _ = detector.detect_and_crop(pil_img)
