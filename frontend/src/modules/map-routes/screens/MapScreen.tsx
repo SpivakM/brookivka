@@ -111,7 +111,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   const [landmarks, setLandmarks] = useState<BackendLandmark[]>([]);
   const [isLoadingLandmarks, setIsLoadingLandmarks] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
-  const [hasLocationPermission, setHasLocationPermission] = useState(false);
   const [isLocationInitialized, setIsLocationInitialized] = useState(false);
 
   // Власний маршрут користувача
@@ -163,7 +162,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
         console.warn('Не вдалося отримати дозвіл на геолокацію:', error);
       }
 
-      setHasLocationPermission(hasPermission);
       setIsLocationInitialized(true);
 
       if (hasPermission) {
@@ -278,11 +276,21 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
               provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
               style={styles.mapImage}
               initialRegion={LVIV_INITIAL_REGION}
-              showsUserLocation={hasLocationPermission && userLocation !== null}
-              showsMyLocationButton={hasLocationPermission && userLocation !== null}
+              // Render the current position ourselves. The native location layer
+              // can crash on some Android Google Maps configurations after permission is granted.
+              showsUserLocation={false}
+              showsMyLocationButton={false}
               showsCompass={false}
               onMapReady={() => console.log('[MapScreen] map is ready')}
             >
+              {userLocation && (
+                <Marker
+                  coordinate={userLocation}
+                  title="Your location"
+                  pinColor="#1565C0"
+                />
+              )}
+
               {/* Маркери пам'яток, отриманих із бази даних */}
               {filteredLandmarks.map((landmark) => {
                 const selectedIndex = customWaypoints.findIndex((w) => w.id === landmark.id);
