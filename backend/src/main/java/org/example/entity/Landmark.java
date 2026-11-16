@@ -5,6 +5,9 @@ import lombok.*;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Point;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Entity
 @Table(name = "landmarks")
 @Getter
@@ -32,8 +35,12 @@ public class Landmark {
     @Column(name = "build_year")
     private Integer buildYear;
 
-    @Column(name = "photo_url")
-    private String photoUrl;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "landmark_photos", joinColumns = @JoinColumn(name = "landmark_id"))
+    @OrderColumn(name = "photo_order")
+    @Column(name = "photo_url", nullable = false)
+    @Builder.Default
+    private List<String> photoUrls = new ArrayList<>();
 
     private String category;
 
