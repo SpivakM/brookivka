@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { COLORS } from '../../../shared/constants/theme';
 import { useTheme } from '../../../shared/context/ThemeContext';
@@ -25,7 +25,17 @@ export const LandmarkCard = React.memo(({ item, onPress }: LandmarkCardProps) =>
   const { colors, themeMode } = useTheme();
   const [imageError, setImageError] = useState(false);
 
-  const hasValidPhoto = Boolean(item.photoUrl && item.photoUrl.trim() && !imageError);
+  const normalizedUri = useMemo(() => {
+    const raw = item.photoUrl?.trim();
+    if (!raw) return null;
+    // Android Release блокує http:// без cleartext конфігу, тому форсимо https:// для зовнішніх URL
+    if (raw.startsWith('http://') && !raw.includes('localhost') && !raw.includes('10.0.2.2')) {
+      return raw.replace(/^http:\/\//i, 'https://');
+    }
+    return raw;
+  }, [item.photoUrl]);
+
+  const hasValidPhoto = Boolean(normalizedUri && !imageError);
 
   return (
     <TouchableOpacity
@@ -38,9 +48,19 @@ export const LandmarkCard = React.memo(({ item, onPress }: LandmarkCardProps) =>
     >
       {hasValidPhoto ? (
         <Image
-          source={{ uri: item.photoUrl!.trim() }}
+          source={{
+            uri: normalizedUri!,
+            headers: {
+              'User-Agent': 'BrookivkaApp/1.0 (Android)',
+              Accept: 'image/*,*/*;q=0.8',
+            },
+          }}
           style={styles.cardImage}
-          onError={() => setImageError(true)}
+          resizeMode="cover"
+          onError={(e) => {
+            console.warn(`[LandmarkCard] Image failed for "${item.name}":`, normalizedUri, e.nativeEvent?.error);
+            setImageError(true);
+          }}
         />
       ) : (
         <View style={[styles.cardImage, styles.placeholderContainer]}>
