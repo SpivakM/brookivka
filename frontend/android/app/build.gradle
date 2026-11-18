@@ -34,7 +34,7 @@ android {
         versionCode 1
         versionName "1.0"
         def mapsKey = project.env.get("GOOGLE_MAPS_API_KEY") ?: ""
-        resValue "string", "GOOGLE_MAPS_API_KEY", mapsKey
+        resValue "string", "google_maps_api_key", mapsKey
 
         externalNativeBuild {
             cmake {

@@ -12,7 +12,7 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline,  PROVIDER_GOOGLE } from 'react-native-maps';
 import polyline from '@mapbox/polyline';
 import Geolocation from 'react-native-geolocation-service';
 
@@ -325,6 +325,28 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  // Координати для побудови маршруту
+  const routeOrigin =
+    userLocation ||
+    (customWaypoints.length > 0
+      ? { latitude: customWaypoints[0].latitude, longitude: customWaypoints[0].longitude }
+      : null);
+
+  const routeDestination =
+    customWaypoints.length > 0
+      ? {
+          latitude: customWaypoints[customWaypoints.length - 1].latitude,
+          longitude: customWaypoints[customWaypoints.length - 1].longitude,
+        }
+      : null;
+
+  const intermediateWaypoints = (
+    userLocation ? customWaypoints.slice(0, -1) : customWaypoints.slice(1, -1)
+  ).map((w) => ({
+    latitude: w.latitude,
+    longitude: w.longitude,
+  }));
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar
@@ -339,7 +361,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       <View style={styles.body}>
         <View style={styles.mapContainer}>
           <MapView
-            ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.mapImage}
             initialRegion={LVIV_INITIAL_REGION}
