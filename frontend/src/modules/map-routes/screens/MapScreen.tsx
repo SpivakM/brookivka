@@ -12,8 +12,8 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import MapViewDirections from 'react-native-maps-directions';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import polyline from '@mapbox/polyline';
 import Geolocation from 'react-native-geolocation-service';
 
 import { HeaderWithFilter } from '../../../shared/components/HeaderWithFilter';
@@ -116,6 +116,9 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
   const [customWaypoints, setCustomWaypoints] = useState<BackendLandmark[]>([]);
   const [routeStats, setRouteStats] = useState<{ distance: number; duration: number } | null>(null);
 
+  // Стейт для координат декодованої лінії маршруту
+  const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
+
   const mapRef = useRef<MapView>(null);
 
   // Завантаження пам'яток із Spring Boot бекенду (/api/landmarks/nearby)
@@ -177,6 +180,126 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
     initLocationAndData();
   }, []);
 
+  useEffect(() => {
+    const fetchWalkingRoute = async () => {
+      if (customWaypoints.length === 0) {
+        setRouteCoordinates([]);
+        setRouteStats(null);
+        return;
+      }
+
+      const origin = userLocation || {
+        latitude: customWaypoints[0].latitude,
+        longitude: customWaypoints[0].longitude,
+      };
+
+      const destinationPoint = customWaypoints[customWaypoints.length - 1];
+      const destination = {
+        latitude: destinationPoint.latitude,
+        longitude: destinationPoint.longitude,
+      };
+
+      // Якщо є локація користувача — усі точки крім останньої є проміжними.
+      // Якщо локації немає — проміжні точки між першою та останньою.
+      const intermediatesList = userLocation
+        ? customWaypoints.slice(0, -1)
+        : customWaypoints.slice(1, -1);
+
+      // Якщо збігаються старт і фініш (обрана 1 точка і немає GPS) — лінія не потрібна
+      if (
+        origin.latitude === destination.latitude &&
+        origin.longitude === destination.longitude &&
+        intermediatesList.length === 0
+      ) {
+        setRouteCoordinates([]);
+        setRouteStats(null);
+        return;
+      }
+
+      try {
+        const requestBody: any = {
+          origin: {
+            location: {
+              latLng: { latitude: origin.latitude, longitude: origin.longitude },
+            },
+          },
+          destination: {
+            location: {
+              latLng: { latitude: destination.latitude, longitude: destination.longitude },
+            },
+          },
+          travelMode: 'WALK',
+          computeAlternativeRoutes: false,
+        };
+
+        if (intermediatesList.length > 0) {
+          requestBody.intermediates = intermediatesList.map((wp) => ({
+            location: {
+              latLng: { latitude: wp.latitude, longitude: wp.longitude },
+            },
+          }));
+          // Вимкни optimizeWaypointOrder, якщо хочеш строго порядок кліків і ліміт 10 000 запитів
+          requestBody.optimizeWaypointOrder = true;
+        }
+
+        const response = await fetch(
+          'https://routes.googleapis.com/directions/v2:computeRoutes',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Goog-Api-Key': API_CONFIG.googleMapsApiKey,
+              // FieldMask обов'язковий для нового Routes API — економить трафік і гроші
+              'X-Goog-FieldMask':
+                'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline',
+            },
+            body: JSON.stringify(requestBody),
+          }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.routes || data.routes.length === 0) {
+          const errMsg = data.error?.message || 'Не вдалося побудувати пішохідний маршрут';
+          throw new Error(errMsg);
+        }
+
+        const route = data.routes[0];
+        const encodedPolyline = route.polyline.encodedPolyline;
+
+        // Декодуємо рядок Google у масив { latitude, longitude }
+        const decodedPoints = polyline.decode(encodedPolyline).map(([lat, lng]) => ({
+          latitude: lat,
+          longitude: lng,
+        }));
+
+        setRouteCoordinates(decodedPoints);
+
+        // distanceMeters -> км, duration (рядок формату "1230s") -> хвилини
+        const distanceKm = (route.distanceMeters || 0) / 1000;
+        const durationSeconds = parseInt((route.duration || '0s').replace('s', ''), 10);
+        const durationMinutes = Math.round(durationSeconds / 60);
+
+        setRouteStats({
+          distance: distanceKm,
+          duration: durationMinutes,
+        });
+
+        if (decodedPoints.length > 0) {
+          mapRef.current?.fitToCoordinates(decodedPoints, {
+            edgePadding: { top: 80, right: 40, bottom: 120, left: 40 },
+            animated: true,
+          });
+        }
+      } catch (error: any) {
+        console.error('Routes API error:', error);
+        Alert.alert('Помилка маршруту', error.message || 'Не вдалося прокласти маршрут');
+      }
+    };
+
+    fetchWalkingRoute();
+  }, [customWaypoints, userLocation]);
+
   // Додавання/видалення пам'ятки з власного маршруту при натисканні на маркер
   const toggleWaypoint = (landmark: BackendLandmark) => {
     setCustomWaypoints((prev) => {
@@ -202,28 +325,6 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  // Координати для побудови маршруту
-  const routeOrigin =
-    userLocation ||
-    (customWaypoints.length > 0
-      ? { latitude: customWaypoints[0].latitude, longitude: customWaypoints[0].longitude }
-      : null);
-
-  const routeDestination =
-    customWaypoints.length > 0
-      ? {
-          latitude: customWaypoints[customWaypoints.length - 1].latitude,
-          longitude: customWaypoints[customWaypoints.length - 1].longitude,
-        }
-      : null;
-
-  const intermediateWaypoints = (
-    userLocation ? customWaypoints.slice(0, -1) : customWaypoints.slice(1, -1)
-  ).map((w) => ({
-    latitude: w.latitude,
-    longitude: w.longitude,
-  }));
-
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <StatusBar
@@ -238,6 +339,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       <View style={styles.body}>
         <View style={styles.mapContainer}>
           <MapView
+            ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.mapImage}
             initialRegion={LVIV_INITIAL_REGION}
@@ -269,30 +371,12 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
               );
             })}
 
-            {/* Прокладання маршруту через Google Directions API */}
-            {routeOrigin && routeDestination && customWaypoints.length > 0 && (
-              <MapViewDirections
-                origin={routeOrigin}
-                destination={routeDestination}
-                waypoints={intermediateWaypoints}
-                apikey={API_CONFIG.googleMapsApiKey}
-                mode="WALKING"
+            {/* Лінія маршруту замість MapViewDirections */}
+            {routeCoordinates.length > 0 && (
+              <Polyline
+                coordinates={routeCoordinates}
                 strokeWidth={4}
                 strokeColor={COLORS.buttonBrown || '#8B4513'}
-                optimizeWaypoints={true}
-                onReady={(result) => {
-                  setRouteStats({
-                    distance: result.distance,
-                    duration: result.duration,
-                  });
-                  mapRef.current?.fitToCoordinates(result.coordinates, {
-                    edgePadding: { top: 80, right: 40, bottom: 120, left: 40 },
-                    animated: true,
-                  });
-                }}
-                onError={(errorMessage) => {
-                  Alert.alert('Помилка маршруту', errorMessage);
-                }}
               />
             )}
           </MapView>
