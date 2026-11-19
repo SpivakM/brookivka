@@ -163,7 +163,7 @@ export const AIGuideScreen: React.FC<AIGuideScreenProps> = ({ navigation, route 
                   resizeMode="cover"
                 />
                 <View style={styles.landmarkTextContainer}>
-                  <Text style={styles.landmarkDescription} numberOfLines={8}>
+                  <Text style={styles.landmarkDescription}>
                     {initialDescription}
                   </Text>
                 </View>
@@ -283,12 +283,12 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   landmarkCard: {
-    flexDirection: 'row',
+    flexDirection: 'column', // було 'row' — тепер фото зверху, а текст суцільно знизу на всю ширину
     backgroundColor: COLORS.backgroundPergament,
     borderWidth: 2,
     borderColor: COLORS.borderBronze,
     borderRadius: 18,
-    padding: 10,
+    padding: 12,
     marginBottom: 20,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 3 },
@@ -297,19 +297,18 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   landmarkImage: {
-    width: 120,
-    height: 145,
+    width: '100%', // фото розтягується на всю ширину картки
+    height: 170,
     borderRadius: 12,
     backgroundColor: '#E0D0B0',
+    marginBottom: 10, // відступ між фото і текстом знизу
   },
   landmarkTextContainer: {
-    flex: 1,
-    paddingLeft: 12,
-    justifyContent: 'center',
+    width: '100%', // прибрали paddingLeft: 12, щоб текст починався від самого лівого краю
   },
   landmarkDescription: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 13.5,
+    lineHeight: 19,
     color: COLORS.textDark,
   },
   messageBubble: {
