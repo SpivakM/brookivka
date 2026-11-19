@@ -361,6 +361,7 @@ export const MapScreen: React.FC<MapScreenProps> = ({ navigation }) => {
       <View style={styles.body}>
         <View style={styles.mapContainer}>
           <MapView
+            ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={styles.mapImage}
             initialRegion={LVIV_INITIAL_REGION}
