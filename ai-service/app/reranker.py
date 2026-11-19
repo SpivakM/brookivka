@@ -100,7 +100,7 @@ def rerank_candidates(
     top2_score = scored[1].score if len(scored) > 1 else 0.0
 
     # Якщо візуальної схожості фактично немає (< 0.45) — об'єкт не впізнано
-    if top1.visualScore < 0.45:
+    if top1.visualScore < 0.3:
         return "NOT_FOUND", None, scored
 
     if top1.score < settings.match_threshold:
