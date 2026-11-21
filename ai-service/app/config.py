@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     ai_service_port: int = 8090
     ai_service_host: str = "0.0.0.0"
 
-    detection_model: str = "yolo11n.pt"
+    detection_model: str = "best.pt"
     detection_confidence_threshold: float = 0.25
     embedding_model: str = "facebook/dinov2-base"
     embedding_dimension: int = 768
