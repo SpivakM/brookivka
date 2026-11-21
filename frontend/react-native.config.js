@@ -7,5 +7,13 @@ module.exports = {
         },
       },
     },
+    'react-native-worklets-core': {
+      platforms: {
+        android: {
+          libraryName: null,
+          cmakeListsPath: null,
+        },
+      },
+    },
   },
 };

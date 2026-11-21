@@ -35,26 +35,17 @@ interface ARScannerScreenProps {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const LVIV_FALLBACK_COORDS = {
-  latitude: 49.8418,
-  longitude: 24.0316,
+  latitude: 49.8412,
+  longitude: 24.0308,
   accuracy: 600,
 };
 
-const ARC_RX = Math.round(SCREEN_WIDTH * 0.68);
+const ARC_RX = Math.round(SCREEN_WIDTH * 0.86);
 const TOP_BAR_HEIGHT = Platform.OS === 'ios' ? 44 : 32;
 
 const SWIPE_OPEN_DX = -42;
 const SWIPE_DIAGONAL_DX = -26;
 const SWIPE_DIAGONAL_DY = 26;
-
-const truncate = (text: string, max = 90) => {
-  if (!text) return '';
-  if (text.length <= max) return text;
-  const cut = text.slice(0, max);
-  const lastSpace = cut.lastIndexOf(' ');
-  const base = lastSpace > 40 ? cut.slice(0, lastSpace) : cut;
-  return base.replace(/[\s.,;:–-]+$/, '') + '…';
-};
 
 function isWithinLviv(lat: number, lng: number): boolean {
   const dLat = Math.abs(lat - LVIV_FALLBACK_COORDS.latitude);
@@ -136,7 +127,7 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
   const isCameraActive = Boolean(hasPermission && device && isScreenFocused && appActive);
 
   const BUTTON_X = SCREEN_WIDTH * 0.5;
-  const BUTTON_Y = SCREEN_HEIGHT * 0.44;
+  const BUTTON_Y = SCREEN_HEIGHT * 0.52;
 
   const dynamicRy =
     contentHeight > 0
@@ -208,11 +199,11 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
                 };
               }
             },
-            () => {},
+            () => { },
             { enableHighAccuracy: false, timeout: 4000, maximumAge: 30000 }
           );
         }
-      } catch {}
+      } catch { }
     };
 
     initLocation();
@@ -266,9 +257,14 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
     ]).start(() => {
       setIsOpen(false);
       swipeOffset.setValue({ x: 0, y: 0 });
-      setDetailLandmark(current);
+      navigation?.navigate('AIGuide', {
+        landmarkId: String(current.id),
+        landmarkName: current.name,
+        initialContext: current.fullDescription || current.description,
+        imageUri: current.photoUrl || undefined,
+      });
     });
-  }, [fadeAnim, swipeOffset]);
+  }, [fadeAnim, swipeOffset, navigation]);
 
   const openLandmarkDetailsRef = useRef(openLandmarkDetails);
   openLandmarkDetailsRef.current = openLandmarkDetails;
@@ -531,7 +527,7 @@ export const ARScannerScreen: React.FC<ARScannerScreenProps> = ({ navigation }) 
 
             <View style={styles.descriptionArcWrapper}>
               <Text style={styles.cardDescription}>
-                {truncate(landmark.description)}{' '}
+                {landmark.fullDescription || landmark.description}{' '}
                 <Text style={styles.aiLinkText} onPress={openLandmarkDetails}>
                   Дізнатися більше...
                 </Text>
@@ -706,9 +702,9 @@ const styles = StyleSheet.create({
   },
   arcTextContent: {
     width: '100%',
-    paddingTop: 16,
-    paddingRight: 16,
-    paddingLeft: '22%',
+    paddingTop: 34,
+    paddingRight: 22,
+    paddingLeft: '14%',
     alignItems: 'flex-end',
   },
   cardTitle: {
@@ -736,7 +732,7 @@ const styles = StyleSheet.create({
   },
   descriptionArcWrapper: {
     width: '100%',
-    paddingLeft: '14%',
+    paddingLeft: '6%',
   },
   cardDescription: {
     fontSize: 12,
