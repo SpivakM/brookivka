@@ -1,4 +1,5 @@
-from typing import Tuple
+import io
+from typing import Tuple, Union
 import numpy as np
 from PIL import Image
 from ultralytics import YOLO
@@ -9,10 +10,18 @@ class ObjectDetector:
     def __init__(self) -> None:
         self.model = YOLO(settings.detection_model)
 
-    def detect_and_crop(self, image: Image.Image) -> Tuple[Image.Image, bool, float]:
+    def detect_and_crop(self, image) -> Tuple[Image.Image, bool, float]:
         """
         Повертає: (cropped_pil_image, detection_fallback, best_confidence)
         """
+        if hasattr(image, "file"):
+            image.file.seek(0)
+            image = Image.open(image.file).convert("RGB")
+        elif isinstance(image, bytes):
+            image = Image.open(io.BytesIO(image)).convert("RGB")
+        elif image.mode != "RGB":
+            image = image.convert("RGB")
+
         img_np = np.array(image)
         h, w = img_np.shape[:2]
 
@@ -21,6 +30,12 @@ class ObjectDetector:
             conf=settings.detection_confidence_threshold,
             verbose=False,
         )
+
+        if results and len(results[0].boxes) > 0:
+            confs = [round(float(c), 3) for c in results[0].boxes.conf.cpu().numpy()]
+            print(f"[YOLO DEBUG] Знайдено рамок: {len(confs)}, confidence: {confs}", flush=True)
+        else:
+            print("[YOLO DEBUG] Жодної рамки не знайдено навіть при conf=0.05", flush=True)
 
         if not results or len(results[0].boxes) == 0:
             return image, True, 0.0
@@ -33,6 +48,10 @@ class ObjectDetector:
             xyxy = boxes.xyxy[i].cpu().numpy()
             conf = float(boxes.conf[i].cpu().numpy())
             area_ratio = ((xyxy[2] - xyxy[0]) * (xyxy[3] - xyxy[1])) / float(w * h)
+            print(f"[YOLO BOX {i}] conf={conf:.3f} (thresh={settings.detection_confidence_threshold}), area={area_ratio:.4f}", flush=True)
+
+            if conf < settings.detection_confidence_threshold:
+                continue
 
             # Відкидаємо крихітний шум (< 2% площі кадру)
             if area_ratio < 0.02:
