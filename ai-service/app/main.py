@@ -149,10 +149,40 @@ async def match_landmark(
             logger.warning("Lazy S3 index sync failed: %s", exc)
 
     # 1. Детекція об'єкта та ROI cropping
-    roi_img, detection_fallback, _ = detector.detect_and_crop(pil_img)
+    roi_img, detection_fallback, det_confidence = detector.detect_and_crop(pil_img)
+
+    # Якщо YOLO не знайшла жодної будівлі — не передаємо чорний екран чи стіл у DINOv2
+    if detection_fallback:
+        return RecognitionResponse(
+            status="NOT_FOUND",
+            requestId=request_id,
+            bestMatch=None,
+            candidates=[],
+            detectionFallback=True,
+            modelVersion=settings.model_version,
+            processingMs=int((time.perf_counter() - start_ts) * 1000),
+        )
 
     # 2. Побудова DINOv2 embedding
     query_vec = embedder.get_embedding(roi_img).reshape(1, -1)
+
+    # # Якщо тестуємо напряму через Swagger (candidatesJson == "[]"), беремо всіх кандидатів з індексу
+    # if not geo_candidates and index_metadata:
+    #     seen_ids = set()
+    #     for meta in index_metadata:
+    #         lid = int(meta["landmarkId"])
+    #         if lid not in seen_ids:
+    #             seen_ids.add(lid)
+    #             geo_candidates.append(
+    #                 GeoCandidate(
+    #                     landmarkId=lid,
+    #                     name=meta.get("name", f"Landmark #{lid}"),
+    #                     latitude=float(meta.get("latitude", latitude)),
+    #                     longitude=float(meta.get("longitude", longitude)),
+    #                     distanceMeters=float(meta.get("distanceMeters", 10.0)),
+    #                     objectType=meta.get("objectType", "BUILDING"),
+    #                 )
+    #             )
 
     # 3. Пошук у FAISS (тільки серед nearby кандидатів)
     visual_matches: Dict[int, Tuple[float, str]] = {}

@@ -21,11 +21,11 @@ class Settings(BaseSettings):
     max_image_height: int = 1920
     inference_timeout_ms: int = 3000
 
-    geo_search_radius_meters: float = 150.0
-    visual_weight: float = 0.60
-    geo_weight: float = 0.30
-    heading_weight: float = 0.10
-    match_threshold: float = 0.72
+    geo_search_radius_meters: float = 1000.0
+    visual_weight: float = 0.80
+    geo_weight: float = 0.15
+    heading_weight: float = 0.05
+    match_threshold: float = 0.62
     match_margin_threshold: float = 0.07
 
     api_url: Optional[str] = None
