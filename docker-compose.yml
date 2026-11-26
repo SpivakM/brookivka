@@ -32,6 +32,7 @@ services:
       AWS_S3_BUCKET: ${AWS_S3_BUCKET}
       AWS_CDN_BASE_URL: ${AWS_CDN_BASE_URL}
       AI_SERVICE_URL: http://ai-service:8090
+      AI_SEARCH_RADIUS_METERS: ${AI_SEARCH_RADIUS_METERS:-15000}
     depends_on:
       db:
         condition: service_healthy

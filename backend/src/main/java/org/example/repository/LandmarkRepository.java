@@ -64,7 +64,7 @@ public interface LandmarkRepository extends JpaRepository<Landmark, Long> {
                   AND ST_DWithin(
                       CAST(l.footprint AS geography),
                       CAST(ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326) AS geography),
-                      :radiusMeters
+                      GREATEST(:radiusMeters, COALESCE(l.visibility_radius_m, 100.0))
                   )
               )
               OR (
