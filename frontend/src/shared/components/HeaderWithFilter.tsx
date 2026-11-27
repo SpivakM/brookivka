@@ -9,6 +9,8 @@ interface HeaderWithFilterProps {
   placeholder?: string;
   onFilterPress?: () => void;
   activeFilterCount?: number;
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 export const HeaderWithFilter: React.FC<HeaderWithFilterProps> = ({
@@ -17,6 +19,8 @@ export const HeaderWithFilter: React.FC<HeaderWithFilterProps> = ({
   placeholder = 'Search...',
   onFilterPress,
   activeFilterCount = 0,
+  onFocus,
+  onBlur,
 }) => {
   return (
     <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
@@ -29,6 +33,8 @@ export const HeaderWithFilter: React.FC<HeaderWithFilterProps> = ({
             placeholderTextColor={COLORS.borderBronze}
             value={searchQuery}
             onChangeText={onSearchChange}
+            onFocus={onFocus}
+            onBlur={onBlur}
           />
         </View>
 
